@@ -237,3 +237,30 @@ describe('htmlCarriesSdk — when a page without the SDK means a stale dev serve
     expect(htmlCarriesSdk('html', () => false)).toBe(true);
   });
 });
+
+/**
+ * `reticle connect` runs init first on a fresh project, and init exiting on a ⚠ ended connect
+ * before it signed in: the person was never told to run it again, and a second identical run is what
+ * worked. Under connect, a setup that did not finish is reported and the run carries on.
+ */
+describe('init run as the first half of connect', () => {
+  it('reports the unfinished setup and returns instead of exiting', async () => {
+    vi.mocked(runSetupCommand).mockResolvedValue({
+      ...SUCCESS,
+      ok: false,
+      fallback: ['add the snippet'],
+    });
+    const before = process.exitCode;
+    // Resolving at all is the claim: the mocked exit throws.
+    await expect(
+      continueAfterInit({ ...ARGS, keepGoing: true }, RESULT, IO, '/app'),
+    ).resolves.toBeUndefined();
+    expect(process.exitCode).toBe(1);
+    process.exitCode = before;
+  });
+
+  it('still exits on its own, as before, when init is the whole command', async () => {
+    vi.mocked(runSetupCommand).mockResolvedValue({ ...SUCCESS, ok: false });
+    await expect(continueAfterInit(ARGS, RESULT, IO, '/app')).rejects.toThrow('exit');
+  });
+});

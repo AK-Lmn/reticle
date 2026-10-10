@@ -123,6 +123,11 @@ import { reportCliRun } from '@/telemetry/cli-telemetry.js';
 export { parseCliArgs, CLI_USAGE };
 export type { CliResult } from './cli/cli-parse.js';
 
+/** Said when `connect` carries on past an init whose setup did not finish. */
+const MSG_CONNECT_AFTER_UNFINISHED_INIT =
+  'Setup did not finish (above) — signing in and linking anyway. Fix what it names, then run ' +
+  '`reticle init` again; this run will still exit non-zero.';
+
 async function handleInit(parsed: {
   port: number | undefined;
   mcp: boolean;
@@ -142,6 +147,7 @@ async function handleInit(parsed: {
   url?: string | undefined;
   timeoutSeconds?: number | undefined;
   driveModel?: string | undefined;
+  keepGoing?: boolean | undefined;
 }): Promise<void> {
   const cwd = process.cwd();
   // RETICLE_PORT counts as explicit, as it does for every other command: resolved once here, so the
@@ -700,10 +706,21 @@ export function main(): void {
       void (async () => {
         // A fresh project gets the same install, dev-server handover and browser proof as `init`.
         // Its failure exits non-zero before any cloud binding can claim this repo is ready.
+        // A setup that did not finish is said above and still fails the run, but no longer ends it
+        // before sign-in: the second identical run was the only way to get signed in.
         if (readProjectId(process.cwd()) === undefined) {
-          await handleInit({ port: undefined, mcp: true, dryRun: false, install: true });
+          await handleInit({
+            port: undefined,
+            mcp: true,
+            dryRun: false,
+            install: true,
+            keepGoing: true,
+          });
+          if (1 === process.exitCode)
+            process.stderr.write(`${MSG_CONNECT_AFTER_UNFINISHED_INIT}\n`);
         }
-        return runCloudCommand(argv);
+        const code = await runCloudCommand(argv);
+        return 0 === code && 1 === process.exitCode ? 1 : code;
       })()
         .then((code) => process.exit(code))
         .catch((cause: unknown) => {

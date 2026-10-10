@@ -87,6 +87,12 @@ interface InitRuntimeArgs {
   /** Restart the calling client so IT gets the tools — see relaunch.ts. */
   readonly relaunch?: boolean | undefined;
   readonly licenseKey?: string | undefined;
+  /**
+   * Init is the first half of a longer command (`reticle connect`): a setup that did not finish
+   * sets a failing exit code and returns, so the command can still sign in and link. Exiting here
+   * ended connect before it signed in, and nothing said to run it again.
+   */
+  readonly keepGoing?: boolean | undefined;
 }
 
 /** Registration is global MCP wiring, so both flags that disown it are read here. */
@@ -135,6 +141,10 @@ export async function continueAfterInit(
   firstFlow?: FirstFlowPort,
 ): Promise<void> {
   const port = parsed.port ?? RETICLE_DEFAULT_PORT;
+  const stop = (): void => {
+    if (true === parsed.keepGoing) process.exitCode = 1;
+    else process.exit(1);
+  };
 
   // Real installs persist the key whichever way setup ends. A preview must leave .env and
   // .gitignore untouched, just as it leaves project wiring and agent configuration untouched.
@@ -163,7 +173,7 @@ export async function continueAfterInit(
     }
     return confirmInstall(result, io, nodeConfirmDeps(port)).then(() => {
       if (true === parsed.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-      if (!result.ok) process.exit(1);
+      if (!result.ok) stop();
     });
   }
 
@@ -177,7 +187,8 @@ export async function continueAfterInit(
     // Nothing was established, so there is nothing to run against. init has already said why.
     ask();
     if (true === parsed.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    process.exit(1);
+    stop();
+    return;
   }
   const reportFailure = (reason: InitFailure): void => {
     if (result.outcome !== undefined) {
@@ -218,7 +229,8 @@ export async function continueAfterInit(
         `${JSON.stringify({ ok: false, reason: InitFailure.BRIDGE_OCCUPIED }, null, 2)}\n`,
       );
     }
-    process.exit(1);
+    stop();
+    return;
   }
 
   return runSetupCommand(
@@ -291,7 +303,7 @@ export async function continueAfterInit(
       // One object, so an agent reads a result instead of interpreting a report.
       if (true === parsed.json) {
         process.stdout.write(`${JSON.stringify(outcome, null, 2)}\n`);
-        if (!outcome.ok) process.exit(1);
+        if (!outcome.ok) stop();
         return;
       }
       io.print('');
@@ -334,7 +346,7 @@ export async function continueAfterInit(
       io.print('⚠ setup did not finish. To carry on from here:');
       for (const [i, step] of outcome.fallback.entries()) io.print(`   ${i + 1}. ${step}`);
       ask();
-      process.exit(1);
+      stop();
     },
     (error: unknown) => {
       reportFailure(InitFailure.RUNTIME_ERROR);
