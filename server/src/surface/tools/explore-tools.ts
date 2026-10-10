@@ -44,7 +44,7 @@ import { sessionRoot } from '@/memory/project/session-root.js';
 import { runTool } from './invoke-tool.js';
 import { driveVerdict, type RemoteDriveOutcome } from '@/features/harness/platform/remote-drive.js';
 import {
-  coverageRefusal,
+  harnessLockRefusal,
   firstLine,
   exploreApp,
   harnessAvailable,
@@ -246,7 +246,7 @@ export async function answerExplore(
     planId !== undefined &&
     platform !== undefined &&
     (await savedPlanDrivesNothing(platform, planId));
-  const locked = replayOnly ? undefined : coverageRefusal(deps, sessionId);
+  const locked = replayOnly ? undefined : await harnessLockRefusal(deps, sessionId, env);
   if (locked !== undefined) {
     if (planId !== undefined && platform !== undefined)
       await reportPlanBlocked(platform, planId, firstLine(locked));

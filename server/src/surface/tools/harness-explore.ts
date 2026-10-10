@@ -227,6 +227,16 @@ export const MSG_GATE_PROMPT_LEAD = 'To unlock it, do this (or hand it to your c
  * resolved is not refused here: the drive itself answers for a missing tab. Counted once per refusal.
  */
 export function coverageRefusal(deps: ToolDeps, sessionId: string | undefined): string | undefined {
+  const refused = localGateRefusal(deps, sessionId);
+  if (refused !== undefined) getSessionMetrics().recordHarnessRefused(refused.percent);
+  return refused?.text;
+}
+
+/** The daemon's own reading of the gate for this tab's app, uncounted. */
+function localGateRefusal(
+  deps: ToolDeps,
+  sessionId: string | undefined,
+): { text: string; percent: number } | undefined {
   let tab: ReturnType<ToolDeps['sessions']['resolve']>;
   try {
     tab = deps.sessions.resolve(sessionId);
@@ -245,6 +255,7 @@ export function coverageRefusal(deps: ToolDeps, sessionId: string | undefined): 
             {
               id: live.id,
               url: live.url,
+              projectId: live.projectId,
               channels: live.channels,
               sourceMapping: live.sourceMapping,
             },
@@ -253,10 +264,30 @@ export function coverageRefusal(deps: ToolDeps, sessionId: string | undefined): 
   const coverage = instrumentationOf(tab, siblings);
   const gate = coverage.harnessGate;
   if (gate.unlocked || gate.reason === undefined) return undefined;
-  getSessionMetrics().recordHarnessRefused(gate.percent);
-  return coverage.prompt === undefined
-    ? gate.reason
-    : `${gate.reason}\n\n${MSG_GATE_PROMPT_LEAD}\n${coverage.prompt}`;
+  const text =
+    coverage.prompt === undefined
+      ? gate.reason
+      : `${gate.reason}\n\n${MSG_GATE_PROMPT_LEAD}\n${coverage.prompt}`;
+  return { text, percent: gate.percent };
+}
+
+/**
+ * The gate a Harness start obeys. When the project is linked, the platform's verdict is the one
+ * source of truth: it locks a run mid-drive on the same report, so a daemon that refused what the
+ * platform unlocked showed two scores for one project. The daemon's own reading only refuses when
+ * the platform said nothing (not linked, unreachable, an older API) or said locked too, in which
+ * case the daemon's sentence names what this tab can fix.
+ */
+export async function harnessLockRefusal(
+  deps: ToolDeps,
+  sessionId: string | undefined,
+  env: Record<string, string | undefined>,
+  fetchConfig?: ConfigFetch,
+): Promise<string | undefined> {
+  if (undefined === localGateRefusal(deps, sessionId)) return undefined;
+  const platform = await fetchPlatformConfig(env, fetchConfig);
+  if (true === platform?.gate?.unlocked) return undefined;
+  return coverageRefusal(deps, sessionId);
 }
 
 /** Two tabs are one app when both name the same project. A tab that names none stands alone. */

@@ -291,7 +291,7 @@ export async function assertVerdict(
     domMutated: false,
     signalsFired: 0,
   });
-  noteSourceSeen(session.id, source ?? stampedSourceIn(evidence));
+  noteSourceSeen(session, source ?? stampedSourceIn(evidence));
   noteSessionGaps(session, gaps);
   // Who can act on this verdict, derived from the clause that decided it — see `attributedTo` below.
   const attributedTo = verdictAttributionOf(decision.verifiedReason);

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CoverageCapability, CoverageMarker, LINK_APP_GAPS_MAX } from '@reticlehq/core';
 import {
   announcedChannels,
+  forgetAllRecordedGaps,
   forgetRecordedGaps,
   instrumentationOf,
   noteSourceSeen,
@@ -13,8 +14,7 @@ import {
 const gap = (missing: string) => ({ kind: 'no-source-mapping', missing, fix: 'add the plugin' });
 
 afterEach(() => {
-  forgetRecordedGaps('s1');
-  forgetRecordedGaps('s2');
+  forgetAllRecordedGaps();
 });
 
 describe('recorded gaps', () => {
@@ -65,7 +65,7 @@ describe('a tab’s coverage', () => {
   /** Test ids were never announced by anything, so coverage could never count them as seen. */
   it('adds the test-id marker once an acted element carried one, unless a test-id gap is recorded', () => {
     expect(announcedChannels(tab)).not.toContain(CoverageMarker.TESTID);
-    noteActedElement('s1', {
+    noteActedElement(tab, {
       testid: 'auth-email',
       source: { file: 'src/ui/input.tsx', line: 26 },
     });
@@ -78,7 +78,7 @@ describe('a tab’s coverage', () => {
   it('adds the source marker once any verdict mapped to a file:line, whatever else was recorded', () => {
     const plain = { id: 's1', channels: ['ui', 'net', 'log'] };
     expect(announcedChannels(plain)).not.toContain(CoverageMarker.SOURCE);
-    noteSourceSeen('s1', 'src/App.jsx:24');
+    noteSourceSeen(plain, 'src/App.jsx:24');
     recordGaps('s1', [gap('e1')], 1);
     expect(announcedChannels(plain)).toContain(CoverageMarker.SOURCE);
     expect(instrumentationOf(plain).seen).toContain(CoverageCapability.SOURCE_MAPPING);
@@ -122,11 +122,41 @@ describe('an app with several tabs', () => {
   it('counts what any of its tabs has seen, and every gap any of them recorded', () => {
     const fresh = { id: 's1', url: 'http://localhost:3000/', channels: ['ui', 'net'] };
     const driven = { id: 's2', url: 'http://localhost:3000/x', channels: ['ui', 'net', 'log'] };
-    noteActedElement('s2', { testid: 'save' });
+    noteActedElement(driven, { testid: 'save' });
     recordGaps('s2', [gap('e7')], 1);
     const merged = instrumentationOf(fresh, [driven]);
     expect(merged.seen).toContain(CoverageCapability.TEST_IDS);
-    expect(instrumentationOf(fresh).seen).not.toContain(CoverageCapability.TEST_IDS);
     expect(merged.prompt ?? '').toContain('e7');
+  });
+
+  /**
+   * A fresh leased tab had not acted yet, so it reported the app at 75% ("File and line, Stable
+   * test ids" missing) and the platform locked a Harness run mid-drive that it had let start at
+   * 87.5%. What one tab of an app showed is the app's, after that tab is gone too.
+   */
+  it('keeps what an ended tab of the app showed for the next fresh tab of it', () => {
+    const before = { id: 's1', url: 'http://localhost:3000/a', projectId: 'shop' };
+    noteActedElement(before, { testid: 'save', source: { file: 'src/a.tsx', line: 3 } });
+    forgetRecordedGaps('s1');
+    const fresh = {
+      id: 's2',
+      url: 'http://localhost:3000/404',
+      projectId: 'shop',
+      channels: ['ui', 'net', 'log', 'state', 'signal'],
+    };
+    expect(instrumentationOf(fresh).harnessGate).toEqual({ percent: 100, unlocked: true });
+    // Another app on the same daemon does not inherit it.
+    const other = { ...fresh, id: 's3', url: 'http://localhost:4000/', projectId: 'blog' };
+    expect(instrumentationOf(other).seen).not.toContain(CoverageCapability.TEST_IDS);
+  });
+
+  it('keys an app with no project by its origin', () => {
+    noteActedElement({ id: 's1', url: 'http://localhost:3000/a' }, { testid: 'save' });
+    expect(announcedChannels({ id: 's2', url: 'http://localhost:3000/b' })).toContain(
+      CoverageMarker.TESTID,
+    );
+    expect(announcedChannels({ id: 's3', url: 'http://localhost:3001/' })).not.toContain(
+      CoverageMarker.TESTID,
+    );
   });
 });

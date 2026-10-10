@@ -65,31 +65,67 @@ export function recordGaps(sessionId: string, gaps: readonly object[], now: numb
   if (0 < list.length) bySession.set(sessionId, list);
 }
 
-/** Sessions where at least one verdict mapped a control to its file:line. */
-const sourceSeen = new Set<string>();
-
-/** A verdict on this session named a file:line: source mapping is seen, whatever else lacks one. */
-export function noteSourceSeen(sessionId: string, source: string | undefined): void {
-  if (source !== undefined) sourceSeen.add(sessionId);
+/** A tab as the notes below key it: its session, and the app it shows. */
+export interface NotedTab {
+  readonly id: string;
+  readonly projectId?: string | undefined;
+  readonly url?: string | undefined;
 }
 
-/** Sessions where an acted element carried a `data-testid`. */
+/**
+ * The app a tab shows, as a key: its project, else its origin. What one tab of an app has shown
+ * (a file:line, a test id) is a fact about the app, and a fresh tab of it has not acted yet: keyed
+ * by session alone, every new lease reported the app at 75% and the platform locked a Harness run
+ * mid-drive that it had let start at 87.5%.
+ */
+function appKeyOf(tab: NotedTab): string | undefined {
+  if (tab.projectId !== undefined && 0 < tab.projectId.length) return `project:${tab.projectId}`;
+  if (tab.url === undefined) return undefined;
+  try {
+    return `origin:${new URL(tab.url).origin}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Sessions, and apps, where at least one verdict mapped a control to its file:line. */
+const sourceSeen = new Set<string>();
+
+/** Mark a tab, and the app it shows, in a seen-set. */
+function markSeen(seen: Set<string>, tab: NotedTab): void {
+  seen.add(tab.id);
+  const app = appKeyOf(tab);
+  if (app !== undefined) seen.add(app);
+}
+
+/** Whether this tab, or any tab of its app, was marked. */
+function wasSeen(seen: ReadonlySet<string>, tab: NotedTab): boolean {
+  const app = appKeyOf(tab);
+  return seen.has(tab.id) || (app !== undefined && seen.has(app));
+}
+
+/** A verdict on this tab named a file:line: source mapping is seen, whatever else lacks one. */
+export function noteSourceSeen(tab: NotedTab, source: string | undefined): void {
+  if (source !== undefined) markSeen(sourceSeen, tab);
+}
+
+/** Sessions, and apps, where an acted element carried a `data-testid`. */
 const testidSeen = new Set<string>();
 
 /** An acted element carried a test id: the app uses them, whatever one control lacks. */
-export function noteTestidSeen(sessionId: string, testid: string | undefined): void {
-  if (testid !== undefined && 0 < testid.length) testidSeen.add(sessionId);
+export function noteTestidSeen(tab: NotedTab, testid: string | undefined): void {
+  if (testid !== undefined && 0 < testid.length) markSeen(testidSeen, tab);
 }
 
 /** What an act result says about the element it reached: its test id and its source stamp. */
-export function noteActedElement(sessionId: string, result: unknown): void {
+export function noteActedElement(tab: NotedTab, result: unknown): void {
   if ('object' !== typeof result || null === result) return;
   const acted = result as Record<string, unknown>;
-  noteTestidSeen(sessionId, text(acted['testid']));
+  noteTestidSeen(tab, text(acted['testid']));
   const source = acted['source'];
   if ('object' === typeof source && null !== source) {
     const file = text((source as Record<string, unknown>)['file']);
-    if (file !== undefined) sourceSeen.add(sessionId);
+    if (file !== undefined) markSeen(sourceSeen, tab);
   }
 }
 
@@ -98,11 +134,8 @@ export function noteActedElement(sessionId: string, result: unknown): void {
  * dispatches through one function, so coverage sees test ids and source stamps from the first
  * control acted on rather than only from a verdict.
  */
-export function notedAct<T extends { ok: boolean; result?: unknown }>(
-  sessionId: string,
-  done: T,
-): T {
-  if (done.ok) noteActedElement(sessionId, done.result);
+export function notedAct<T extends { ok: boolean; result?: unknown }>(tab: NotedTab, done: T): T {
+  if (done.ok) noteActedElement(tab, done.result);
   return done;
 }
 
@@ -111,17 +144,22 @@ export function recordedGaps(sessionId: string): readonly RecordedGap[] {
   return bySession.get(sessionId) ?? [];
 }
 
-/** Forget a session that ended. */
+/** Forget a session that ended. What its app has shown is kept: it is still that app's. */
 export function forgetRecordedGaps(sessionId: string): void {
   bySession.delete(sessionId);
   sourceSeen.delete(sessionId);
   testidSeen.delete(sessionId);
 }
 
+/** Forget everything, apps included. For tests. */
+export function forgetAllRecordedGaps(): void {
+  bySession.clear();
+  sourceSeen.clear();
+  testidSeen.clear();
+}
+
 /** What instrumentation coverage reads off a connected tab. */
-export interface InstrumentedTab {
-  readonly id: string;
-  readonly url?: string | undefined;
+export interface InstrumentedTab extends NotedTab {
   readonly channels?: readonly string[] | undefined;
   readonly sourceMapping?: boolean | undefined;
   /** What the person said to the agent from this tab. Absent on a test double. */
@@ -140,12 +178,12 @@ export function announcedChannels(tab: InstrumentedTab): string[] {
   // Only the build turning the stamp off overrules the page: one unmapped control does not mean
   // the app has no source mapping (core's per-control rule).
   const off = gaps.some((gap) => InstrumentationGapKind.SOURCE_MAPPING_OFF === gap.kind);
-  if (!off && (sourceSeen.has(tab.id) || true === tab.sourceMapping))
+  if (!off && (wasSeen(sourceSeen, tab) || true === tab.sourceMapping))
     channels.push(CoverageMarker.SOURCE);
   // Nothing announces test ids, so they are seen on an acted element — and a control the agent
   // could only reach without one keeps the capability missing.
   const noTestid = gaps.some((gap) => InstrumentationGapKind.MISSING_TESTID === gap.kind);
-  if (!noTestid && testidSeen.has(tab.id)) channels.push(CoverageMarker.TESTID);
+  if (!noTestid && wasSeen(testidSeen, tab)) channels.push(CoverageMarker.TESTID);
   return channels;
 }
 

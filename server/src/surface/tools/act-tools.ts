@@ -161,7 +161,7 @@ export async function actCommand(
   }
   const bridgeArgs: Record<string, unknown> = { ...actArgs, args: rewritten };
   const done = await session.command(ReticleCommand.ACT, bridgeArgs, timeoutMs);
-  return notedAct(session.id, done);
+  return notedAct(session, done);
 }
 
 export const ACT_TOOLS: ToolDef[] = [
@@ -617,7 +617,7 @@ export const ACT_TOOLS: ToolDef[] = [
         const actedSourceLabel =
           actedSource === undefined ? undefined : `${actedSource.file}:${String(actedSource.line)}`;
         session.lastAct.markSource(actedSourceLabel);
-        noteSourceSeen(session.id, actedSourceLabel);
+        noteSourceSeen(session, actedSourceLabel);
         const windowEvents = session.eventsSince(since);
         const trace = summarizeReaction(
           buildReactionReport(windowEvents, session.elapsed() - since),

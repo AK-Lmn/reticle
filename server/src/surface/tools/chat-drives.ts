@@ -44,7 +44,7 @@ import {
 } from '../../features/harness/platform/local-apps.js';
 import { serverOptionsFromEnv } from '../../features/harness/platform/server-driver.js';
 import { EXPLORE_TOOLS, driveForChat } from './explore-tools.js';
-import { MSG_NO_HARNESS_KEY, coverageRefusal, withLinkedCredential } from './harness-explore.js';
+import { MSG_NO_HARNESS_KEY, harnessLockRefusal, withLinkedCredential } from './harness-explore.js';
 import { runTool } from './invoke-tool.js';
 import {
   announcedChannels,
@@ -287,6 +287,8 @@ export function startChatDrives(
           // coverage line and coding-agent prompt are built from.
           const channels = announcedChannels({
             id: tab.sessionId,
+            url: tab.url,
+            projectId: tab.projectId,
             channels: live?.channels,
             sourceMapping: live?.sourceMapping,
           });
@@ -408,9 +410,10 @@ export async function hudDrive(
     return;
   }
   // Before the grant: a drive the gate refuses must not take one. The panel shows the prompt.
-  const locked = coverageRefusal(deps, sessionId);
+  const env = await withLinkedCredential(deps, process.env);
+  const locked = await harnessLockRefusal(deps, sessionId, env);
   if (locked !== undefined) return say(locked.split('\n')[0] ?? locked);
-  const platform = serverOptionsFromEnv(await withLinkedCredential(deps, process.env));
+  const platform = serverOptionsFromEnv(env);
   if (platform === undefined) return say(MSG_NO_HARNESS_KEY);
   const granted = await grant(platform);
   if (!granted.granted) {

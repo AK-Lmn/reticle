@@ -4,7 +4,8 @@ import type { ToolDeps } from './tool-kit.js';
 // The tool table first, as the daemon loads it: the explore module sits on an import cycle with it.
 import './tools.js';
 import { hudDrive } from './chat-drives.js';
-import { coverageRefusal, MSG_GATE_PROMPT_LEAD } from './harness-explore.js';
+import { coverageRefusal, harnessLockRefusal, MSG_GATE_PROMPT_LEAD } from './harness-explore.js';
+import type { ConfigFetch } from '@/features/harness/platform-config.js';
 import { answerExplore } from './explore-tools.js';
 import { getSessionMetrics, resetSessionMetrics } from '@/telemetry/session-metrics.js';
 import { DriveOrigin, forgetDrives, startDrive } from '@/features/harness/drive-runs.js';
@@ -86,6 +87,49 @@ describe('the Harness coverage gate', () => {
     expect(asked).toBe(false);
     expect(said).toHaveLength(1);
     expect(said[0]).toMatch(/^Harness unlocks at 80% instrumentation\. This app is at 62%/);
+  });
+});
+
+/**
+ * The daemon refused (or the platform locked mid-drive) at 75% while `/v1/model/config` said 87.5%
+ * unlocked in the same minute. A linked project's platform verdict is the one the lock obeys.
+ */
+describe('the platform gate is the lock when the project is linked', () => {
+  const LINKED = { RETICLE_API_KEY: 'rk_live_x', RETICLE_CLOUD_URL: 'https://app.reticle.test' };
+  const answering =
+    (unlocked: boolean): ConfigFetch =>
+    () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ provider: 'jev', harnessUnlocked: unlocked, coverageScore: 0.875 }),
+          ),
+      });
+
+  it('lets a run start that the platform unlocked, whatever this tab scores', async () => {
+    expect(await harnessLockRefusal(tabDeps(BELOW), 's1', LINKED, answering(true))).toBeUndefined();
+  });
+
+  it("keeps the daemon's sentence when the platform says locked too", async () => {
+    expect(await harnessLockRefusal(tabDeps(BELOW), 's1', LINKED, answering(false))).toMatch(
+      /^Harness unlocks at 80% instrumentation/,
+    );
+  });
+
+  it('refuses on its own reading when no platform answers', async () => {
+    expect(await harnessLockRefusal(tabDeps(BELOW), 's1', {})).toMatch(/^Harness unlocks at 80%/);
+  });
+
+  it('asks nothing of the platform when this tab is already above the gate', async () => {
+    let asked = false;
+    const spy: ConfigFetch = () => {
+      asked = true;
+      return answering(false)('', { method: 'GET', headers: {} });
+    };
+    expect(await harnessLockRefusal(tabDeps(ABOVE), 's1', LINKED, spy)).toBeUndefined();
+    expect(asked).toBe(false);
   });
 });
 
