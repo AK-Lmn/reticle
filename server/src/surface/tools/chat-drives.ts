@@ -361,6 +361,11 @@ export function startChatDrives(
   };
 }
 
+/** Said on the HUD when Link this project ends. */
+const MSG_LINKED = 'Linked. This project now reports to your dashboard.';
+const MSG_LINK_FAILED = 'Could not link this project. Run `reticle connect` in its folder.';
+const MSG_LINK_UNAVAILABLE =
+  'This Reticle cannot link from the panel. Run `reticle connect` in the project folder.';
 /** Said on the HUD when Stop finds nothing to stop. */
 const MSG_NOTHING_DRIVING = 'No Harness drive is running in this tab.';
 const msgStartTrial = (url: string): string => `Start your trial: ${url}`;
@@ -426,7 +431,7 @@ export function attachHudHarness(
   bridge: {
     attachHarnessRequest(
       handler: (
-        request: Parameters<typeof hudDrive>[2],
+        request: Parameters<typeof hudDrive>[2] | { kind: typeof HumanControlKind.HARNESS_LINK },
         session: { id: string; artifactRoot?: string | undefined },
       ) => void,
     ): void;
@@ -440,9 +445,20 @@ export function attachHudHarness(
     repaint: () => void;
   },
   applySwitch: (root: string, on: boolean) => void,
+  /** Link this project: what `reticle connect` does from that folder. Absent: the button says so. */
+  link?: (root: string) => Promise<number>,
 ): void {
   bridge.attachHarnessRequest((request, s) => {
     const root = s.artifactRoot ?? daemon.root;
+    if (HumanControlKind.HARNESS_LINK === request.kind) {
+      const say = (text: string): void => daemon.deps().sessions.get?.(s.id)?.pushNarration(text);
+      if (link === undefined) return say(MSG_LINK_UNAVAILABLE);
+      void link(root)
+        .then((code) => say(0 === code ? MSG_LINKED : MSG_LINK_FAILED))
+        .catch(() => say(MSG_LINK_FAILED))
+        .finally(daemon.repaint);
+      return;
+    }
     void hudDrive(daemon.deps(), s.id, request, (on) => applySwitch(root, on));
   });
   onDriveChange(daemon.repaint);

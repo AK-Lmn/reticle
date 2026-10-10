@@ -682,6 +682,7 @@ export async function startDaemon(options: StartOptions = {}): Promise<RunningSe
     bridge,
     { deps: () => deps, root: reticleRoot, repaint: () => repaint() },
     (r, on) => applyHarnessSwitch(configForRoot, r, on, platformEnvFor(r)),
+    options.hudLink,
   );
   // Scope auto-selection to the active project (from .reticle.json) so a stray tab from another app is
   // never picked when the agent omits a sessionId. Explicit per-call scope/sessionId still overrides.

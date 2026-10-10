@@ -72,6 +72,12 @@ export const HumanControlKind = {
   HARNESS_RUN: 'harness-run',
   /** Human pressed Stop on the drive running in this tab. Carries nothing. */
   HARNESS_STOP: 'harness-stop',
+  /**
+   * Human pressed Link this project on the Harness page. Carries nothing: the daemon links the
+   * project of the tab that asked, as `reticle connect` would from that folder, and every panel
+   * repaints when the link file lands.
+   */
+  HARNESS_LINK: 'harness-link',
 } as const;
 export type HumanControlKind = (typeof HumanControlKind)[keyof typeof HumanControlKind];
 

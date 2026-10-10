@@ -15,6 +15,8 @@ export interface StartOptions {
    * its panel falls back to copying `reticle login`.
    */
   hudSignIn?: (repaint: () => void) => () => void;
+  /** The Harness page's Link this project: link the project in this folder, as `reticle connect` does. */
+  hudLink?: (root: string) => Promise<number>;
   port?: number;
   /** Bind address. Non-loopback hosts require a token. Defaults to RETICLE_HOST or localhost. */
   host?: string;

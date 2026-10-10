@@ -10,7 +10,8 @@ import { EventType, HumanControlKind } from '@reticlehq/core';
 export type HarnessRequest =
   | { kind: typeof HumanControlKind.HARNESS; enabled: boolean }
   | { kind: typeof HumanControlKind.HARNESS_RUN; persona?: string }
-  | { kind: typeof HumanControlKind.HARNESS_STOP };
+  | { kind: typeof HumanControlKind.HARNESS_STOP }
+  | { kind: typeof HumanControlKind.HARNESS_LINK };
 
 export function harnessRequest(event: {
   type: string;
@@ -19,7 +20,8 @@ export function harnessRequest(event: {
   if (event.type !== EventType.HUMAN_CONTROL) return undefined;
   const kind = event.data['kind'];
   const text = event.data['text'];
-  if (HumanControlKind.HARNESS_STOP === kind) return { kind };
+  if (HumanControlKind.HARNESS_STOP === kind || HumanControlKind.HARNESS_LINK === kind)
+    return { kind };
   if (HumanControlKind.HARNESS_RUN === kind) {
     const persona = 'string' === typeof text ? text.trim() : '';
     return 0 < persona.length ? { kind, persona } : { kind };

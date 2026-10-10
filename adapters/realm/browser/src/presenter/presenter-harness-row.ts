@@ -1,11 +1,11 @@
 /**
- * Run Harness as one row at the foot of the Agent Log.
+ * Reticle Harness in the HUD: one row at the foot of the Agent Log, and the Harness page it opens.
  *
- * It used to be a card (heading, paragraph, switch, persona field, hint, button) that took over half
- * the panel and squeezed the log, and the log is what a person opened the panel to read. Now every
- * state is one row: ready is a persona and Run, a drive is its status and Stop, and every reason it
- * cannot run is one short sentence and the one thing that fixes it. The on/off switch lives in
- * Settings only; what Harness does is said once, in the empty log.
+ * The foot row says the state in two or three words and opens the page; while a drive runs it is the
+ * drive's steps and Stop. The page holds everything else, each state as one sentence and the one
+ * action that fixes it: sign in, link this project, raise the setup score, switch on, pick who to
+ * test as and run. Linking is a button here, not a command to type: the daemon links the project of
+ * the tab that asked.
  */
 import {
   CreditKind,
@@ -29,16 +29,17 @@ export const HARNESS_ROW_TEXT = {
   STOP: 'Stop',
   SIGNED_OUT: SIGN_UP_PITCH,
   SIGN_IN: 'Sign in',
-  UNLINKED: 'Not linked: run <code>reticle connect</code>',
+  UNLINKED: 'This project is not on your dashboard yet.',
+  LINK: 'Link this project',
+  LINKING: 'Linking…',
   NOT_ENTITLED: 'Harness is not on your plan',
   NO_CREDITS: 'No Harness credits left',
   NO_PROVIDER: 'No model provider set',
   OFF: 'Harness is off',
   /** At the coverage gate with the Harness off: it can be switched on now. */
-  canSwitchOn: (percent: number): string =>
-    `This app is at ${String(percent)}% instrumentation: Harness can be switched on`,
-  TURN_ON: 'Turn on',
-  COPY_PROMPT: 'Copy prompt for your coding agent',
+  canSwitchOn: (percent: number): string => `Setup score ${String(percent)}%. Harness is off.`,
+  TURN_ON: 'Switch on',
+  COPY_PROMPT: 'Copy setup prompt',
   COPIED: 'Copied',
   SET_UP: 'Set up ↗',
   PLANS: 'See plans ↗',
@@ -46,10 +47,25 @@ export const HARNESS_ROW_TEXT = {
   MORE: 'Get more ↗',
   driving: (as: string | undefined, steps: number): string =>
     `Driving${as === undefined ? '' : ` as ${as}`} · ${String(steps)} step${1 === steps ? '' : 's'}`,
+  /** The foot row: "Harness · On · 380 credits ›". */
+  foot: (state: string): string => `Harness · ${state} ›`,
+  FOOT_LINK: 'Link project',
+  FOOT_OFF: 'Off',
+  FOOT_ON: 'On',
+  FOOT_NO_CREDITS: 'No credits',
+  FOOT_NOT_ENTITLED: 'Not on your plan',
+  FOOT_NO_PROVIDER: 'No model provider',
+  footSetup: (percent: number): string => `Setup ${String(percent)}% · needs 80%`,
+  PAGE_TITLE: 'Reticle Harness',
+  PAGE_SUBTITLE: 'Tests your app by itself',
 } as const;
 
-/** Opens Settings on the Harness switch, the one place it lives. */
-export const HARNESS_SETTINGS_ATTR = 'data-reticle-harness-settings';
+/** Switches the Harness on, from its page: the same write-through the Settings switch makes. */
+export const HARNESS_SWITCH_ON_ATTR = 'data-reticle-harness-switch';
+/** Links this tab's project to the dashboard: the daemon does what `reticle connect` would. */
+export const HARNESS_LINK_ATTR = 'data-reticle-harness-link';
+/** The foot row's button: opens the Harness page. */
+export const HARNESS_OPEN_ATTR = 'data-reticle-harness-open';
 /** Copies the prompt that closes the coverage gate. */
 export const HARNESS_COPY_PROMPT_ATTR = 'data-reticle-harness-copy-prompt';
 
@@ -116,6 +132,8 @@ export interface HarnessRowState {
   startedAs: string | undefined;
   setupUrl: string;
   planUrl: string;
+  /** A link the person asked for is under way: the button says so instead of offering it twice. */
+  linking?: boolean;
 }
 
 const row = (inner: string): string => `<div class="reticle-harness-row">${inner}</div>`;
@@ -145,7 +163,35 @@ function creditsUsedRow(credits: Credits, planUrl: string): string {
   return wrapRow(`${said(text.said)}${action}`);
 }
 
-/** The row for this state. Never more than one row, plus the custom box when Custom is picked. */
+/** The two or three words the foot row says for this state. */
+function footState(s: HarnessRowState): string {
+  const gate = s.gate;
+  if (gate !== undefined && !gate.unlocked && gate.reason !== undefined)
+    return HARNESS_ROW_TEXT.footSetup(gate.percent);
+  const config = s.config;
+  if (config === undefined) return HARNESS_ROW_TEXT.FOOT_LINK;
+  if (config.credits !== undefined && creditsSpent(config.credits))
+    return HARNESS_ROW_TEXT.FOOT_NO_CREDITS;
+  if (!config.harnessEntitled) return HARNESS_ROW_TEXT.FOOT_NOT_ENTITLED;
+  if (false === config.providerReady) return HARNESS_ROW_TEXT.FOOT_NO_PROVIDER;
+  if (!config.harnessEnabled) return HARNESS_ROW_TEXT.FOOT_OFF;
+  const credits = creditsShort(config.credits);
+  return 0 < credits.length ? `${HARNESS_ROW_TEXT.FOOT_ON} · ${credits}` : HARNESS_ROW_TEXT.FOOT_ON;
+}
+
+/**
+ * The foot of the Agent Log: signed out it is Sign in, while a drive runs it is the drive and Stop,
+ * otherwise one button that names the state and opens the Harness page.
+ */
+export function harnessFootHtml(s: HarnessRowState): string {
+  if (s.account === undefined) return '';
+  if (!s.account.signedIn || (s.drive !== undefined && s.canDrive)) return harnessRowHtml(s);
+  return row(
+    `<button type="button" ${HARNESS_OPEN_ATTR} class="reticle-harness-open">${esc(HARNESS_ROW_TEXT.foot(footState(s)))}</button>`,
+  );
+}
+
+/** The Harness page's body for this state: one sentence and the action that fixes it. */
 export function harnessRowHtml(s: HarnessRowState): string {
   // Unknown is not signed out: an older daemon, or the first push not here yet. Show nothing.
   if (s.account === undefined) return '';
@@ -169,7 +215,9 @@ export function harnessRowHtml(s: HarnessRowState): string {
     );
   const config = s.config;
   if (config === undefined)
-    return row(`${said(HARNESS_ROW_TEXT.UNLINKED)}${link(s.setupUrl, HARNESS_ROW_TEXT.SET_UP)}`);
+    return wrapRow(
+      `${said(HARNESS_ROW_TEXT.UNLINKED)}<button type="button" ${HARNESS_LINK_ATTR} class="reticle-harness-run"${true === s.linking ? ' disabled' : ''}>${true === s.linking ? HARNESS_ROW_TEXT.LINKING : HARNESS_ROW_TEXT.LINK}</button>`,
+    );
   // Credits first: the platform says none left as not entitled, and "not on your plan" was wrong.
   if (config.credits !== undefined && creditsSpent(config.credits))
     return creditsUsedRow(config.credits, s.planUrl);
@@ -179,7 +227,7 @@ export function harnessRowHtml(s: HarnessRowState): string {
     return row(`${said(HARNESS_ROW_TEXT.NO_PROVIDER)}${link(s.setupUrl, HARNESS_ROW_TEXT.SET_UP)}`);
   if (!config.harnessEnabled)
     return row(
-      `${said(gate === undefined ? HARNESS_ROW_TEXT.OFF : HARNESS_ROW_TEXT.canSwitchOn(gate.percent))}<button type="button" ${HARNESS_SETTINGS_ATTR} class="reticle-harness-link">${HARNESS_ROW_TEXT.TURN_ON}</button>`,
+      `${said(gate === undefined ? HARNESS_ROW_TEXT.OFF : HARNESS_ROW_TEXT.canSwitchOn(gate.percent))}<button type="button" ${HARNESS_SWITCH_ON_ATTR} class="reticle-harness-run">${HARNESS_ROW_TEXT.TURN_ON}</button>`,
     );
   if (!s.canDrive) return '';
   return (
@@ -211,6 +259,11 @@ export const HARNESS_ROW_CSS = `
 [data-reticle-chat-panel] .reticle-harness-stop{background:transparent;color:var(--reticle-hud-text);border:1px solid var(--reticle-hud-border-strong);}
 [data-reticle-chat-panel] .reticle-harness-link{flex:none;border:0;padding:0;background:none;cursor:pointer;font:inherit;color:var(--reticle-hud-brand);font-size:var(--reticle-hud-size-sm);font-weight:600;text-decoration:none;white-space:nowrap;}
 [data-reticle-chat-panel] .reticle-harness-link:hover{text-decoration:underline;}
+[data-reticle-chat-panel] .reticle-harness-open{flex:1;min-width:0;height:30px;padding:0 var(--reticle-hud-space-2);border:0;border-radius:var(--reticle-hud-radius-sm);background:transparent;cursor:pointer;
+  text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-size:var(--reticle-hud-size-sm);color:var(--reticle-hud-text);}
+[data-reticle-chat-panel] .reticle-harness-open:hover{background:var(--reticle-hud-hover);}
+[data-reticle-chat-panel] .reticle-harness-open:focus-visible{outline:2px solid var(--reticle-hud-brand);outline-offset:0;}
+[data-reticle-chat-panel] .reticle-harness-run:disabled{opacity:.6;cursor:default;}
 [data-reticle-chat-panel] .reticle-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
 [data-reticle-chat-panel] .reticle-foot-meta{margin:0;font-size:11px;line-height:1.3;color:var(--reticle-hud-text-muted);overflow-wrap:anywhere;}
 [data-reticle-chat-panel] .reticle-foot-meta:empty{display:none;}

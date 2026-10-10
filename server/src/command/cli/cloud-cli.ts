@@ -315,7 +315,11 @@ const cmdProject = async (argv: readonly string[]): Promise<number> => {
  * whoami. Writes the non-secret binding to <repo>/.reticle/cloud.json and the secret key to
  * ~/.reticle/credentials.json (keyed by projectId).
  */
-const cmdLink = async (argv: readonly string[]): Promise<number> => {
+export const cmdLink = async (
+  argv: readonly string[],
+  /** The folder to link. The CLI's own; the daemon passes the folder of the tab that asked. */
+  cwd: string = process.cwd(),
+): Promise<number> => {
   const f = flags(argv);
   const url = baseUrl(await readSession(), f['url']);
   // Same rule as every other authed verb: the token is looked up by the host it will be sent to.
@@ -328,10 +332,10 @@ const cmdLink = async (argv: readonly string[]): Promise<number> => {
    */
   // The project's own folder, which is where a session from here writes its runs. A link made before
   // this, in the folder `link` was run from, is still read as the prior binding.
-  const projectDir = linkDirectoryFrom(process.cwd());
+  const projectDir = linkDirectoryFrom(cwd);
   const priorLink =
     (await readJson(join(projectDir, RETICLE_DIR, CLOUD_LINK_FILE))) ??
-    (await readJson(join(process.cwd(), RETICLE_DIR, CLOUD_LINK_FILE)));
+    (await readJson(join(cwd, RETICLE_DIR, CLOUD_LINK_FILE)));
   const priorProjectId =
     'object' === typeof priorLink && priorLink !== null
       ? (priorLink as Record<string, unknown>)['projectId']
@@ -511,10 +515,8 @@ const cmdLink = async (argv: readonly string[]): Promise<number> => {
    * this can be read aloud, pasted into an issue, or left in a terminal without leaking anything.
    */
   hint(`bound this repo to project "${projectName}"`);
-  if (projectDir !== resolve(process.cwd()))
-    hint(
-      `linked ${relative(process.cwd(), projectDir)}: that is where this app's runs are written`,
-    );
+  if (projectDir !== resolve(cwd))
+    hint(`linked ${relative(cwd, projectDir)}: that is where this app's runs are written`);
   hint(
     reusedKey
       ? `reusing key ${keyHint(key)} — already stored in ${credPath}, not in your repo`

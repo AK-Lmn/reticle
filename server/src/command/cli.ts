@@ -43,7 +43,7 @@ import { handleUpdate, handleRollback } from './cli/cli-update-commands.js';
 import { headlessByDefault } from './cli/daemon-start-options.js';
 
 import { startDaemon } from '@/index.js';
-import { accountStatusFields, isCloudCommand, runCloudCommand } from './cli/cloud-cli.js';
+import { accountStatusFields, cmdLink, isCloudCommand, runCloudCommand } from './cli/cloud-cli.js';
 import { SERVER_VERSION } from './version/identity/server-version.js';
 import { log } from '@/log.js';
 import {
@@ -521,7 +521,11 @@ function handleDaemonInner(parsed: {
   httpToken?: string;
 }): void {
   // The daemon the CLI starts is the one that can sign in for the panel: it owns ~/.reticle.
-  const options: StartOptions = { ...daemonStartOptions(parsed), hudSignIn };
+  const options: StartOptions = {
+    ...daemonStartOptions(parsed),
+    hudSignIn,
+    hudLink: (root) => cmdLink([], root),
+  };
 
   startDaemon(options)
     .then((server) => {

@@ -41,6 +41,7 @@ import {
   CHAT_VIEWS_NAV_HTML,
   ANNOTATIONS_HTML,
   FLOWS_PAGE_HTML,
+  HARNESS_PAGE_HTML,
   platformBase,
   type ChatView,
 } from './presenter-chat-views.js';
@@ -95,8 +96,8 @@ interface HudShellCallbacks {
   onHarnessRun?: (persona?: string) => void;
   /** Stop on the drive running in this tab. */
   onHarnessStop?: () => void;
-  /** Send a note to the coding agent, read on its next Reticle call. */
-  onAgentNote?: (text: string) => void;
+  /** Link pressed on the Harness page: the daemon links this tab's project to the dashboard. */
+  onHarnessLink?: () => void;
   /** Any Sign in button. The daemon owns the credential, so it starts the browser sign-in. */
   onSignIn?: () => void;
   settings?: SettingsHost;
@@ -261,8 +262,6 @@ export class HudShell {
   constructor(callbacks: HudShellCallbacks = {}) {
     this.#callbacks = callbacks;
     this.#chatViews = new ChatViews(
-      // "Turn on" opens Settings, where the Harness switch lives.
-      () => this.#settings.open(),
       () => {
         this.#chatViews.closePage();
         this.closeChat();
@@ -283,8 +282,9 @@ export class HudShell {
       {
         run: (persona) => callbacks.onHarnessRun?.(persona),
         stop: () => callbacks.onHarnessStop?.(),
+        switchOn: () => callbacks.onHarness?.(true),
+        link: () => callbacks.onHarnessLink?.(),
       },
-      (text) => callbacks.onAgentNote?.(text),
     );
     this.#settings = new PresenterSettingsPanel({
       ...callbacks.settings,
@@ -325,6 +325,7 @@ export class HudShell {
         ${footHtml}
       </div>
       ${FLOWS_PAGE_HTML}
+      ${HARNESS_PAGE_HTML}
       ${ANNOTATIONS_HTML}
       <button type="button" ${CHAT_PILL_ATTR} class="reticle-chat-pill" title="${CHAT_PILL_LABEL}" aria-label="${CHAT_PILL_LABEL}">
         ${MARK_SVG}

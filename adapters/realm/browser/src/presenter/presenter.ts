@@ -213,7 +213,7 @@ export class Presenter {
           ...(persona === undefined ? {} : { text: persona }),
         }),
       onHarnessStop: () => this.#onControl?.({ kind: HumanControlKind.HARNESS_STOP }),
-      onAgentNote: (text) => this.#onControl?.({ kind: HumanControlKind.MESSAGE, text }),
+      onHarnessLink: () => this.#onControl?.({ kind: HumanControlKind.HARNESS_LINK }),
       settings: {
         onBeforeOpen: () => {
           if (this.#shell.isCollapsed()) this.#shell.expand();

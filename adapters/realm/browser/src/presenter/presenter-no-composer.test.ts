@@ -1,11 +1,11 @@
 /**
- * The HUD's one text box says who it talks to.
+ * The HUD's footer has no box to type into.
  *
  * The old composer went because users could not tell when to type into the HUD and when to type at
- * their agent: two boxes that looked alike and did different things, and nothing said which was
- * which. The note box that replaced it is labelled with the agent's own name and sits beside
- * "Connected: <agent>", so the question cannot arise. These pin the parts of the old removal that
- * still matter: no textarea, none of the composer's markup or styles left in the hit-test path.
+ * their agent. A note box labelled with the agent's name replaced it, and went too: the person talks
+ * to their coding agent in the agent's own window, and the HUD says which agent is connected. These
+ * pin the parts of both removals that still matter: no text box, none of the composer's markup or
+ * styles left in the hit-test path.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -29,7 +29,7 @@ const PRESENTER_SHELL_SRC = readFileSync(
   'utf8',
 );
 
-describe('the HUD has one text box, and it names the agent it talks to', () => {
+describe('the HUD footer has no text box', () => {
   it('renders no textarea and none of the old composer', () => {
     expect(CONTROLS_FOOT_HTML).not.toContain('<textarea');
     expect(CONTROLS_FOOT_HTML).not.toContain('data-reticle-send');
@@ -37,12 +37,10 @@ describe('the HUD has one text box, and it names the agent it talks to', () => {
     expect(CONTROLS_CSS).not.toContain('.reticle-composer');
   });
 
-  it('labels its only text box as a note to the coding agent', () => {
+  it('renders no text box at all: the agent is talked to in its own window', () => {
     document.body.innerHTML = CONTROLS_FOOT_HTML;
-    const inputs = [...document.querySelectorAll<HTMLInputElement>('input[type="text"]')];
-    expect(inputs.map((input) => input.getAttribute('data-reticle-agent-note'))).toEqual(['']);
-    const label = document.querySelector(`label[for="${inputs[0]?.id ?? ''}"]`);
-    expect(label?.hasAttribute('data-reticle-agent-label')).toBe(true);
+    expect(document.querySelectorAll('input[type="text"], textarea')).toHaveLength(0);
+    expect(document.querySelector('[data-reticle-agent-note]')).toBeNull();
     document.body.innerHTML = '';
   });
 

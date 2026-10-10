@@ -5,20 +5,23 @@ import {
   CHAT_VIEWS_HTML,
   CHAT_VIEWS_NAV_HTML,
   FLOWS_PAGE_HTML,
+  HARNESS_PAGE_HTML,
   ChatViews,
 } from './presenter-chat-views.js';
 import { PERSONAS } from './presenter-personas.js';
 import { harnessGateIn } from './presenter-harness-row.js';
 
-const mountViews = (onHarness = vi.fn()) => {
-  document.body.innerHTML = `<div data-reticle-overlay><div data-reticle-chat-panel>${CHAT_VIEWS_HTML}<section class="reticle-chat-view" aria-label="Agent Log"></section></div>${FLOWS_PAGE_HTML}${ANNOTATIONS_HTML}${CHAT_VIEWS_NAV_HTML}</div>`;
+const driveHost = () => ({ run: vi.fn(), stop: vi.fn(), switchOn: vi.fn(), link: vi.fn() });
+
+const mountViews = (drive = driveHost()) => {
+  document.body.innerHTML = `<div data-reticle-overlay><div data-reticle-chat-panel>${CHAT_VIEWS_HTML}<section class="reticle-chat-view" aria-label="Agent Log"></section></div>${FLOWS_PAGE_HTML}${HARNESS_PAGE_HTML}${ANNOTATIONS_HTML}${CHAT_VIEWS_NAV_HTML}</div>`;
   const root = document.querySelector<HTMLElement>('[data-reticle-overlay]');
   if (null === root) throw new Error('chat panel failed to mount');
   const onImpact = vi.fn();
   const onOpenChat = vi.fn();
-  const views = new ChatViews(onHarness, onImpact, onOpenChat);
+  const views = new ChatViews(onImpact, onOpenChat, drive);
   views.mount(root);
-  return { root, views, onHarness, onImpact, onOpenChat };
+  return { root, views, drive, onImpact, onOpenChat };
 };
 
 const entitled: HarnessConfig = {
@@ -34,7 +37,9 @@ afterEach(() => {
 
 describe('chat views and harness access states', () => {
   const rows = (root: HTMLElement): number =>
-    root.querySelectorAll('[data-reticle-harness-spot] .reticle-harness-row').length;
+    root.querySelectorAll('[data-reticle-harness-page] .reticle-harness-row').length;
+  const foot = (root: HTMLElement): HTMLElement | null =>
+    root.querySelector<HTMLElement>('[data-reticle-harness-spot]');
 
   it('signed out, is one row: the free credits and the trial, and Sign in', () => {
     const { root, views } = mountViews();
@@ -52,30 +57,61 @@ describe('chat views and harness access states', () => {
     expect(rows(root)).toBe(0);
   });
 
-  it('has no heading, no paragraph and no switch in any state: the log gets the room', () => {
-    const { root, views } = mountViews();
+  it('signed in, the foot is one button that names the state and opens the Harness page', () => {
+    const { root, views, onOpenChat } = mountViews();
     views.paintAccount({ signedIn: true });
-    for (const config of [
-      undefined,
-      { ...entitled, harnessEntitled: false },
-      { ...entitled, providerReady: false },
-      { ...entitled, harnessEnabled: false },
-      { ...entitled, credits: { used: 5, limit: 5 } },
-    ]) {
+    for (const [config, said] of [
+      [undefined, 'Harness · Link project ›'],
+      [{ ...entitled, harnessEntitled: false }, 'Harness · Not on your plan ›'],
+      [{ ...entitled, providerReady: false }, 'Harness · No model provider ›'],
+      [{ ...entitled, harnessEnabled: false }, 'Harness · Off ›'],
+      [{ ...entitled, credits: { used: 5, limit: 5 } }, 'Harness · No credits ›'],
+      [
+        { ...entitled, credits: { used: 2, limit: 10, kind: 'free' } },
+        'Harness · On · Free: 2 of 10 credits used · 8 left ›',
+      ],
+    ] as const) {
       views.paintHarness(config);
+      expect(foot(root)?.querySelectorAll('.reticle-harness-row')).toHaveLength(1);
+      expect(foot(root)?.querySelector('[data-reticle-harness-open]')?.textContent).toBe(said);
+      expect(foot(root)?.querySelector('select, input, [data-reticle-harness-run]')).toBeNull();
       expect(rows(root)).toBe(1);
-      expect(root.querySelector('.reticle-harness-title')).toBeNull();
-      expect(root.querySelector('[data-reticle-harness-switch]')).toBeNull();
     }
+    foot(root)?.querySelector<HTMLElement>('[data-reticle-harness-open]')?.click();
+    expect(onOpenChat).toHaveBeenCalledWith('harness');
+    expect(root.querySelector<HTMLElement>('[data-reticle-page-panel="harness"]')?.hidden).toBe(
+      false,
+    );
   });
 
-  it('explains missing project access in one row with one link', () => {
+  it('closes the Harness page when the person signs out: the page is for a signed-in person', () => {
     const { root, views } = mountViews();
     views.paintAccount({ signedIn: true });
+    views.open('harness');
+    views.paintAccount({ signedIn: false });
+    expect(root.querySelector<HTMLElement>('[data-reticle-page-panel="harness"]')?.hidden).toBe(
+      true,
+    );
+    expect(foot(root)?.querySelector('[data-reticle-account-signin]')).not.toBeNull();
+  });
+
+  it('an unlinked project is linked from the page, never by a command to type', () => {
+    const { root, views, drive } = mountViews();
+    views.paintAccount({ signedIn: true });
     views.paintHarness(undefined);
-    expect(root.textContent).toContain('reticle connect');
-    expect(root.querySelectorAll('.reticle-harness-link')).toHaveLength(1);
-    expect(root.querySelector('.reticle-harness-link')?.textContent).toContain('Set up');
+    expect(root.textContent).not.toContain('reticle connect');
+    expect(root.textContent).toContain('This project is not on your dashboard yet.');
+    const button = (): HTMLButtonElement | null =>
+      root.querySelector<HTMLButtonElement>('[data-reticle-harness-link]');
+    button()?.click();
+    expect(drive.link).toHaveBeenCalledTimes(1);
+    expect(button()?.textContent).toBe('Linking…');
+    expect(button()?.disabled).toBe(true);
+    button()?.click();
+    expect(drive.link).toHaveBeenCalledTimes(1);
+    // The daemon's next push carries the platform's config: linked, and the button is gone.
+    views.paintHarness(entitled);
+    expect(button()).toBeNull();
   });
 
   it('shows the Harness value and setup link to signed-in users without entitlement', () => {
@@ -123,7 +159,7 @@ describe('chat views and harness access states', () => {
       expect(rows(root)).toBe(1);
       expect(root.textContent).toContain(locked.reason);
       expect(root.querySelector('[data-reticle-harness-copy-prompt]')?.textContent).toBe(
-        'Copy prompt for your coding agent',
+        'Copy setup prompt',
       );
       expect(root.querySelector('[data-reticle-harness-run]')).toBeNull();
     });
@@ -144,14 +180,13 @@ describe('chat views and harness access states', () => {
       Reflect.deleteProperty(navigator, 'clipboard');
     });
 
-    it('at 80% or more with Harness off, says it can be switched on', () => {
-      const { root, views } = mountViews();
+    it('at 80% or more with Harness off, says the score and switches it on from the page', () => {
+      const { root, views, drive } = mountViews();
       views.paintAccount({ signedIn: true });
       views.paintHarness({ ...entitled, harnessEnabled: false }, { percent: 87, unlocked: true });
-      expect(root.textContent).toContain(
-        'This app is at 87% instrumentation: Harness can be switched on',
-      );
-      expect(root.querySelector('[data-reticle-harness-settings]')).not.toBeNull();
+      expect(root.textContent).toContain('Setup score 87%. Harness is off.');
+      root.querySelector<HTMLElement>('[data-reticle-harness-switch]')?.click();
+      expect(drive.switchOn).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -175,7 +210,7 @@ describe('chat views and harness access states', () => {
       credits: { used: limit, limit, kind },
     });
     const links = (root: HTMLElement): (string | null)[] =>
-      [...root.querySelectorAll('[data-reticle-harness-spot] .reticle-harness-link')].map(
+      [...root.querySelectorAll('[data-reticle-harness-page] .reticle-harness-link')].map(
         (a) => a.textContent,
       );
 
@@ -245,7 +280,7 @@ describe('chat views and harness access states', () => {
   it('links to the platform the daemon talks to, not always the hosted one', () => {
     const { root, views } = mountViews();
     views.paintAccount({ signedIn: true, host: 'http://localhost:4100' });
-    views.paintHarness(undefined);
+    views.paintHarness({ ...entitled, providerReady: false });
     expect(root.querySelector('.reticle-harness-link')?.getAttribute('href')).toBe(
       'http://localhost:4100/settings?group=project#model',
     );
@@ -276,19 +311,19 @@ describe('chat views and harness access states', () => {
   it('never links to a base that is not http(s)', () => {
     const { root, views } = mountViews();
     views.paintAccount({ signedIn: true, host: 'javascript:alert(1)' });
-    views.paintHarness(undefined);
+    views.paintHarness({ ...entitled, providerReady: false });
     expect(root.querySelector('.reticle-harness-link')?.getAttribute('href')).toBe(
       'https://app.reticle.sh/settings?group=project#model',
     );
   });
 
-  it('when Harness is off, says so and opens Settings, where the switch lives', () => {
-    const { root, views, onHarness } = mountViews();
+  it('when Harness is off, says so and switches it on from the page', () => {
+    const { root, views, drive } = mountViews();
     views.paintAccount({ signedIn: true });
     views.paintHarness({ ...entitled, harnessEnabled: false });
     expect(root.textContent).toContain('Harness is off');
-    root.querySelector<HTMLElement>('[data-reticle-harness-settings]')?.click();
-    expect(onHarness).toHaveBeenCalledTimes(1);
+    root.querySelector<HTMLElement>('[data-reticle-harness-switch]')?.click();
+    expect(drive.switchOn).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Notes controls in one compact row', () => {
@@ -368,12 +403,7 @@ describe('chat views and harness access states', () => {
  */
 describe('running the Harness from the panel', () => {
   const mountWithDrive = () => {
-    const drive = { run: vi.fn(), stop: vi.fn() };
-    document.body.innerHTML = `<div data-reticle-overlay><div data-reticle-chat-panel>${CHAT_VIEWS_HTML}</div></div>`;
-    const root = document.querySelector<HTMLElement>('[data-reticle-overlay]');
-    if (null === root) throw new Error('chat panel failed to mount');
-    const views = new ChatViews(vi.fn(), vi.fn(), vi.fn(), drive);
-    views.mount(root);
+    const { root, views, drive } = mountViews();
     views.paintAccount({ signedIn: true });
     views.paintHarness(entitled);
     return { root, views, drive };
@@ -389,7 +419,9 @@ describe('running the Harness from the panel', () => {
   it('is one row, "As [preset] Run Harness", First-time visitor by default, each with its hint', () => {
     const { root } = mountWithDrive();
     const select = root.querySelector<HTMLSelectElement>('[data-reticle-harness-persona-pick]');
-    expect(root.querySelectorAll('.reticle-harness-row')).toHaveLength(1);
+    expect(root.querySelectorAll('[data-reticle-harness-page] .reticle-harness-row')).toHaveLength(
+      1,
+    );
     expect(root.querySelector(`label[for="${select?.id ?? ''}"]`)?.textContent).toBe('As');
     expect([...(select?.options ?? [])].map((o) => o.textContent)).toEqual([
       ...PERSONAS.map((p) => p.label),
@@ -416,10 +448,14 @@ describe('running the Harness from the panel', () => {
     pick(root, 'keyboard');
     root.querySelector<HTMLElement>('[data-reticle-harness-run]')?.click();
     views.paintDrive({ runId: 'harness-1', steps: 7 });
-    expect(root.querySelectorAll('.reticle-harness-row')).toHaveLength(1);
-    expect(root.querySelector('.reticle-harness-said')?.textContent).toBe(
-      'Driving as Keyboard only · 7 steps',
-    );
+    // The foot row and the page both say it: the log stays readable while it runs.
+    for (const scope of ['[data-reticle-harness-spot]', '[data-reticle-harness-page]']) {
+      expect(root.querySelectorAll(`${scope} .reticle-harness-row`)).toHaveLength(1);
+      expect(root.querySelector(`${scope} .reticle-harness-said`)?.textContent).toBe(
+        'Driving as Keyboard only · 7 steps',
+      );
+      expect(root.querySelector(`${scope} [data-reticle-harness-stop]`)).not.toBeNull();
+    }
   });
 
   it('reveals the text box for Custom and runs with the words typed there', () => {
@@ -474,9 +510,9 @@ describe('running the Harness from the panel', () => {
   it('cannot start a run while the switch is off', () => {
     const { root, views, drive } = mountWithDrive();
     views.paintHarness({ ...entitled, harnessEnabled: false });
-    // No Run button to press at all: the row says Harness is off and offers to turn it on.
+    // No Run button to press at all: the page says Harness is off and offers to switch it on.
     expect(root.querySelector('[data-reticle-harness-run]')).toBeNull();
-    expect(root.querySelector('[data-reticle-harness-settings]')).not.toBeNull();
+    expect(root.querySelector('[data-reticle-harness-switch]')).not.toBeNull();
     expect(drive.run).not.toHaveBeenCalled();
   });
 

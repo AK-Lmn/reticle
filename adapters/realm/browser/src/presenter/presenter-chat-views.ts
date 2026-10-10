@@ -22,9 +22,12 @@ import {
 import { HUD_GLASS_PAINT } from './chrome/presenter-hud-chrome.js';
 import {
   HARNESS_COPY_PROMPT_ATTR,
+  HARNESS_LINK_ATTR,
+  HARNESS_OPEN_ATTR,
   HARNESS_ROW_TEXT,
-  HARNESS_SETTINGS_ATTR,
+  HARNESS_SWITCH_ON_ATTR,
   creditsShort,
+  harnessFootHtml,
   harnessRowHtml,
   HARNESS_ROW_CSS,
   type HarnessGateView,
@@ -46,7 +49,8 @@ import {
   agentsLine,
 } from './presenter-agent-link.js';
 
-export type ChatView = 'activity' | 'flows' | 'annotations';
+export type ChatView = 'activity' | 'flows' | 'annotations' | 'harness';
+const PAGE_VIEWS: readonly ChatView[] = ['flows', 'annotations', 'harness'];
 const HISTORY_KEY = ReticleStorageKey.ANNOTATION_HISTORY;
 const HISTORY_LIMIT = 200;
 /** Settings → Projects → Verification: the console's Harness switch. There is no /harness page. */
@@ -103,10 +107,12 @@ function saveHistory(items: HistoricalAnnotation[]): void {
   }
 }
 
-/** What the panel's Run Harness and Stop do: the presenter sends them to the daemon. */
+/** What the Harness controls do: the presenter sends each to the daemon, which owns the answer. */
 export interface HudDriveHost {
   run(persona?: string): void;
   stop(): void;
+  switchOn(): void;
+  link(): void;
 }
 
 export const CHAT_VIEWS_HTML = `${AGENT_LINK_HTML}
@@ -137,6 +143,12 @@ const NOTES_TEXT = {
   HISTORY_HINT: 'Notes from every page you annotate are kept here.',
 } as const;
 
+export const HARNESS_PAGE_HTML: string = `<section data-reticle-page-panel="harness" class="reticle-page-panel reticle-harness-page" role="region" aria-label="${HARNESS_ROW_TEXT.PAGE_TITLE}" hidden>
+  <div class="reticle-page-heading"><span class="reticle-page-titles"><strong>${HARNESS_ROW_TEXT.PAGE_TITLE}</strong><span class="reticle-page-subtitle">${HARNESS_ROW_TEXT.PAGE_SUBTITLE}</span></span><button type="button" data-reticle-page-close aria-label="Close ${HARNESS_ROW_TEXT.PAGE_TITLE}" title="Close">×</button></div>
+  <div data-reticle-harness-page class="reticle-harness-body"></div>
+  <p data-reticle-harness-page-meta class="reticle-foot-meta"></p>
+</section>`;
+
 export const ANNOTATIONS_HTML = `<section data-reticle-page-panel="annotations" class="reticle-page-panel reticle-annotations-view" role="region" aria-label="Notes" hidden>
   <div class="reticle-page-heading"><span class="reticle-page-titles"><strong>Notes</strong><span class="reticle-page-subtitle">Pin feedback on the page for your agent</span></span><button type="button" ${ANNOTATE_BTN_ATTR} class="reticle-add-notes reticle-primary-btn" title="Add notes" aria-label="Add notes" aria-pressed="false" data-active="0"><span class="reticle-add-notes-icon">${hiIconHtml(PresenterIcon.ANNOTATE, PRESENTER_ICON_SIZE.TOOLBAR)}</span><span data-reticle-notes-toggle-label>Add notes</span></button><button type="button" data-reticle-page-close aria-label="Close Notes" title="Close">×</button></div>
   <div class="reticle-annotations-tabs" role="group" aria-label="Notes lists">
@@ -152,6 +164,11 @@ export const ANNOTATIONS_HTML = `<section data-reticle-page-panel="annotations" 
 
 export const CHAT_VIEWS_CSS = `
 ${HARNESS_ROW_CSS}
+${HARNESS_ROW_CSS.replaceAll('[data-reticle-chat-panel]', '[data-reticle-page-panel="harness"]')}
+[data-reticle-page-panel="harness"] .reticle-harness-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:var(--reticle-hud-space-2);padding:var(--reticle-hud-space-3);}
+[data-reticle-page-panel="harness"] .reticle-foot-meta{flex:none;padding:0 var(--reticle-hud-space-3) var(--reticle-hud-space-3);}
+[data-reticle-page-open="harness"] [data-reticle-page-panel="harness"]{display:flex;}
+[data-reticle-page-open="harness"] [data-reticle-chat-panel]{display:none!important;}
 [data-reticle-hud] .reticle-chat-nav{display:contents;}
 [data-reticle-hud] .reticle-chat-nav button{position:relative;width:var(--reticle-hud-control-size);height:var(--reticle-hud-control-size);justify-self:center;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--reticle-hud-radius-md);padding:0;background:transparent;color:var(--reticle-hud-text-muted);cursor:pointer;}
 [data-reticle-hud] .reticle-chat-nav button:hover{background:var(--reticle-hud-hover);color:var(--reticle-hud-text);}
@@ -209,7 +226,6 @@ export class ChatViews {
   #harness: HarnessConfig | undefined;
   #gate: HarnessGateView | undefined;
   #verdicts = 0;
-  #onOpenSettings: () => void;
   #onImpact: () => void;
   #onOpenChat: (view: ChatView) => void;
   #listeners: AbortController | undefined;
@@ -219,24 +235,18 @@ export class ChatViews {
   #personaPick: string = DEFAULT_PERSONA;
   #customPersona = '';
   #harnessHtml = '';
-  #agent: AgentLinkView;
+  #harnessPageHtml = '';
+  /** Link pressed and not answered yet: the page says Linking… until the daemon's push says linked. */
+  #linking = false;
+  #agent = new AgentLinkView();
   #agentLink: AgentLink | undefined;
   /** The persona this panel started the running drive as, so its row can say so. */
   #startedAs: string | undefined;
 
-  constructor(
-    /** "Turn on" when Harness is off: the switch lives in Settings only. */
-    onOpenSettings: () => void,
-    onImpact: () => void,
-    onOpenChat: (view: ChatView) => void,
-    drive?: HudDriveHost,
-    onNote: (text: string) => void = () => undefined,
-  ) {
-    this.#onOpenSettings = onOpenSettings;
+  constructor(onImpact: () => void, onOpenChat: (view: ChatView) => void, drive?: HudDriveHost) {
     this.#onImpact = onImpact;
     this.#onOpenChat = onOpenChat;
     this.#drive = drive;
-    this.#agent = new AgentLinkView(onNote);
   }
 
   mount(root: HTMLElement): void {
@@ -257,37 +267,54 @@ export class ChatViews {
     root
       .querySelector('[data-reticle-chat-impact]')
       ?.addEventListener('click', () => this.#onImpact(), { signal });
-    root.querySelector('[data-reticle-harness-spot]')?.addEventListener(
-      'click',
-      (event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        const run = target.closest<HTMLButtonElement>('[data-reticle-harness-run]');
-        if (null !== run) {
-          if (run.disabled) return;
-          this.#startedAs = this.#personaPick;
-          this.#drive?.run(personaText(this.#personaPick, this.#customPersona));
-          return;
-        }
-        if (null !== target.closest('[data-reticle-harness-stop]')) {
-          this.#drive?.stop();
-          return;
-        }
-        const copy = target.closest<HTMLButtonElement>(`[${HARNESS_COPY_PROMPT_ATTR}]`);
-        if (null !== copy) {
-          const prompt = this.#gate?.prompt;
-          if (prompt !== undefined)
-            void navigator.clipboard
-              ?.writeText(prompt)
-              .then(() => (copy.textContent = HARNESS_ROW_TEXT.COPIED))
-              .catch(() => undefined);
-          return;
-        }
-        if (null !== target.closest(`[${HARNESS_SETTINGS_ATTR}]`)) this.#onOpenSettings();
-      },
-      { signal },
-    );
-    const spot = root.querySelector('[data-reticle-harness-spot]');
+    const onHarnessClick = (event: Event): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (null !== target.closest(`[${HARNESS_OPEN_ATTR}]`)) {
+        this.#onOpenChat('harness');
+        this.open('harness');
+        return;
+      }
+      if (null !== target.closest(`[${HARNESS_SWITCH_ON_ATTR}]`)) {
+        this.#drive?.switchOn();
+        return;
+      }
+      const linkButton = target.closest<HTMLButtonElement>(`[${HARNESS_LINK_ATTR}]`);
+      if (null !== linkButton) {
+        if (linkButton.disabled) return;
+        this.#linking = true;
+        this.#drive?.link();
+        this.#paintHarness();
+        return;
+      }
+      const run = target.closest<HTMLButtonElement>('[data-reticle-harness-run]');
+      if (null !== run) {
+        if (run.disabled) return;
+        this.#startedAs = this.#personaPick;
+        this.#drive?.run(personaText(this.#personaPick, this.#customPersona));
+        return;
+      }
+      if (null !== target.closest('[data-reticle-harness-stop]')) {
+        this.#drive?.stop();
+        return;
+      }
+      const copy = target.closest<HTMLButtonElement>(`[${HARNESS_COPY_PROMPT_ATTR}]`);
+      if (null !== copy) {
+        const prompt = this.#gate?.prompt;
+        if (prompt !== undefined)
+          void navigator.clipboard
+            ?.writeText(prompt)
+            .then(() => (copy.textContent = HARNESS_ROW_TEXT.COPIED))
+            .catch(() => undefined);
+      }
+    };
+    root
+      .querySelector('[data-reticle-harness-spot]')
+      ?.addEventListener('click', onHarnessClick, { signal });
+    root
+      .querySelector('[data-reticle-harness-page]')
+      ?.addEventListener('click', onHarnessClick, { signal });
+    const spot = root.querySelector('[data-reticle-harness-page]');
     spot?.addEventListener(
       'change',
       (event) => {
@@ -364,11 +391,12 @@ export class ChatViews {
     this.#listeners = undefined;
     this.#root = undefined;
     this.#harnessHtml = '';
+    this.#harnessPageHtml = '';
     this.#agent.teardown();
   }
 
   open(view: ChatView): void {
-    if (view !== 'activity' && view !== 'flows' && view !== 'annotations') return;
+    if (view !== 'activity' && !PAGE_VIEWS.includes(view)) return;
     this.#view = view;
     const root = this.#root;
     if (root === undefined) return;
@@ -422,6 +450,8 @@ export class ChatViews {
     this.#paintHarness();
   }
   paintHarness(config: HarnessConfig | undefined, gate?: HarnessGateView): void {
+    // A config now means the project is linked: the link the person pressed has landed.
+    if (config !== undefined) this.#linking = false;
     this.#harness = config;
     this.#gate = gate;
     this.#paintHarness();
@@ -450,8 +480,9 @@ export class ChatViews {
   }
 
   #paintHarness(): void {
-    const spot = this.#root?.querySelector<HTMLElement>('[data-reticle-harness-spot]');
-    if (null === spot || spot === undefined) return;
+    const root = this.#root;
+    const spot = root?.querySelector<HTMLElement>('[data-reticle-harness-spot]');
+    if (root === undefined || null === spot || spot === undefined) return;
     const account = this.#account;
     const config = this.#harness;
     spot.hidden = false;
@@ -459,7 +490,7 @@ export class ChatViews {
     // Named, so the dashboard opens on THIS project's switch rather than on "All projects".
     const project =
       this.#projectId === undefined ? '' : `&project=${encodeURIComponent(this.#projectId)}`;
-    const html = harnessRowHtml({
+    const state = {
       account,
       config,
       gate: this.#gate,
@@ -469,14 +500,27 @@ export class ChatViews {
       startedAs: this.#startedAs,
       setupUrl: `${base}${HARNESS_SETUP_PATH}${project}${HARNESS_SETUP_HASH}`,
       planUrl: `${base}${HARNESS_PLAN_PATH}`,
-    });
+      linking: this.#linking,
+    };
     // Unchanged markup is not redrawn, so a repaint mid-typing never drops focus or the cursor.
-    if (html !== this.#harnessHtml) {
-      spot.innerHTML = html;
-      this.#harnessHtml = html;
+    const foot = harnessFootHtml(state);
+    if (foot !== this.#harnessHtml) {
+      spot.innerHTML = foot;
+      this.#harnessHtml = foot;
     }
-    const custom = spot.querySelector<HTMLInputElement>('[data-reticle-harness-persona]');
-    if (custom !== null && custom.value !== this.#customPersona) custom.value = this.#customPersona;
+    // The page is for a signed-in person only: signing out while it is open goes back to the log.
+    if (true !== account?.signedIn && 'harness' === this.#view) this.closePage();
+    const page = root.querySelector<HTMLElement>('[data-reticle-harness-page]');
+    if (page !== null) {
+      const body = harnessRowHtml(state);
+      if (body !== this.#harnessPageHtml) {
+        page.innerHTML = body;
+        this.#harnessPageHtml = body;
+      }
+      const custom = page.querySelector<HTMLInputElement>('[data-reticle-harness-persona]');
+      if (custom !== null && custom.value !== this.#customPersona)
+        custom.value = this.#customPersona;
+    }
     this.#paintMeta();
   }
 
@@ -492,6 +536,9 @@ export class ChatViews {
     ]
       .filter((part) => 0 < part.length)
       .join(' · ');
+    const pageMeta = this.#root?.querySelector<HTMLElement>('[data-reticle-harness-page-meta]');
+    if (pageMeta !== null && pageMeta !== undefined)
+      pageMeta.textContent = signedIn ? creditsShort(this.#harness?.credits) : '';
   }
 
   #visibleAnnotations(): readonly (AnnotationItem | HistoricalAnnotation)[] {
