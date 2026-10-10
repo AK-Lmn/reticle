@@ -11,6 +11,7 @@ import { homedir, hostname } from 'node:os';
 import type { SessionInfo } from '../../portal/session/session-info.js';
 import {
   LinkCapability,
+  ReticleDir,
   ReticleTool,
   asRecord,
   type LinkDevServer,
@@ -331,7 +332,14 @@ export function startChatDrives(
         ...(0 === unsynced.length
           ? {}
           : {
-              unsynced: unsynced.map((u) => ({ ...u, root: homeRelative(u.root, homedir()) })),
+              unsynced: unsynced.map((u) => ({
+                ...u,
+                // The project, not its `.reticle`: the dashboard tells the person to run a command there.
+                root: homeRelative(
+                  ReticleDir.ROOT === basename(u.root) ? dirname(u.root) : u.root,
+                  homedir(),
+                ),
+              })),
             }),
       };
     },

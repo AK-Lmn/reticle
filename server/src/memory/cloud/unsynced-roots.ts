@@ -7,7 +7,7 @@
  * platform report can each name the folder and the one command that fixes it.
  */
 import { existsSync, readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import { ReticleDir } from '@reticlehq/core';
 import { DRIVE_RECORD_SUFFIX } from '@/memory/project/dir/reticle-dir.js';
 import { diskSource, readCloudState } from './sync-disk.js';
@@ -23,6 +23,8 @@ export interface UnsyncedRoot {
 }
 
 const RUN_SUFFIX = '.json';
+/** The folder the command is run from, named when it is the one the person is already in. */
+const HERE = 'this folder';
 
 /**
  * Run files in `root` the platform never accepted. Ids only — a run file is named by its id — so
@@ -77,11 +79,18 @@ export async function unsyncedRoots(
   return out;
 }
 
+/** The project a `.reticle` folder belongs to: where a person runs the command that sends it. */
+export function projectFolderOf(root: string): string {
+  return ReticleDir.ROOT === basename(root) ? dirname(root) : root;
+}
+
 /** One line a person can act on: where the runs are, and the command that sends them. */
 export function describeUnsynced(entry: UnsyncedRoot, from: string): string {
   // Forward slashes on every platform, as the platform report writes `~/...`: one spelling of a
   // folder whether it is read in a Windows terminal, the HUD or the dashboard.
-  const where = (relative(from, entry.root) || entry.root).split(sep).join('/');
+  const folder = projectFolderOf(entry.root);
+  const where =
+    0 === relative(from, folder).length ? HERE : relative(from, folder).split(sep).join('/');
   const what = [
     ...(0 < entry.runs ? [`${String(entry.runs)} run(s)`] : []),
     ...(0 < entry.flows ? [`${String(entry.flows)} flow(s)`] : []),

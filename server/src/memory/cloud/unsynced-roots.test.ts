@@ -10,6 +10,7 @@ import { ReticleDir } from '@reticlehq/core';
 import { DRIVE_RECORD_SUFFIX } from '@/memory/project/dir/reticle-dir.js';
 import {
   describeUnsynced,
+  projectFolderOf,
   unsentFlowCount,
   unsentRunCount,
   unsyncedRoots,
@@ -95,7 +96,7 @@ describe('unsynced roots', () => {
   it('tells an unlinked folder to connect, and a linked one to sync', () => {
     expect(
       describeUnsynced({ root: '/w/apps/web/.reticle', runs: 31, flows: 0, linked: false }, '/w'),
-    ).toBe('31 run(s) in apps/web/.reticle are not on your dashboard: run `reticle connect` there');
+    ).toBe('31 run(s) in apps/web are not on your dashboard: run `reticle connect` there');
     expect(
       describeUnsynced({ root: '/w/.reticle', runs: 2, flows: 0, linked: true }, '/w'),
     ).toContain('`reticle sync`');
@@ -110,12 +111,18 @@ describe('unsynced roots', () => {
     expect(said).toContain('`reticle sync`');
   });
 
+  /** "run it there" pointed inside `.reticle`, where no command is meant to be run. */
+  it('names the project folder the command is run in, never the .reticle inside it', () => {
+    expect(projectFolderOf('/w/apps/web/.reticle')).toBe('/w/apps/web');
+    expect(projectFolderOf('/w/apps/web')).toBe('/w/apps/web');
+  });
+
   it('names the flows too, and leaves out a count of zero', () => {
     expect(describeUnsynced({ root: '/w/.reticle', runs: 1, flows: 2, linked: false }, '/w')).toBe(
-      '1 run(s) and 2 flow(s) in .reticle are not on your dashboard: run `reticle connect` there',
+      '1 run(s) and 2 flow(s) in this folder are not on your dashboard: run `reticle connect` there',
     );
     expect(describeUnsynced({ root: '/w/.reticle', runs: 0, flows: 3, linked: false }, '/w')).toBe(
-      '3 flow(s) in .reticle are not on your dashboard: run `reticle connect` there',
+      '3 flow(s) in this folder are not on your dashboard: run `reticle connect` there',
     );
   });
 });
