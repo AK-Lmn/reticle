@@ -181,7 +181,7 @@ ${BELOW} ${PAGES}{bottom:auto;top:calc(100% + 8px + var(--reticle-rail-h) + var(
   border-radius:var(--reticle-hud-radius-md);background:transparent;color:var(--reticle-hud-text-muted);}
 [data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn:hover{background:var(--reticle-hud-hover);color:var(--reticle-hud-text);}
 [data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn[data-active="1"],
-[data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn[data-active="1"]:hover{background:var(--reticle-hud-inset);color:var(--reticle-hud-text);}
+[data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn[data-active="1"]:hover{background:transparent;color:var(--reticle-hud-text);}
 
 [${RAIL_ATTR}]{
   display:none;position:absolute;right:0;left:auto;bottom:calc(100% + 8px);z-index:7;

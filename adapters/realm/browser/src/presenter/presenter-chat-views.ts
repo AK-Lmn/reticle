@@ -135,10 +135,10 @@ export const navLabelHtml = (text: string): string =>
   `<span class="reticle-nav-label">${text}</span>`;
 export const CHAT_VIEWS_NAV_HTML = `<nav class="reticle-chat-nav" aria-label="Reticle views">
   <button type="button" ${CHAT_TOGGLE_ATTR} data-reticle-chat-view-btn="activity" aria-label="Agent log" title="Agent log" aria-current="page">${hiIconHtml(PresenterIcon.MESSAGE, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.LOG)}</button>
-  <button type="button" data-reticle-chat-view-btn="flows" aria-label="Saved flows" title="Saved flows">${hiIconHtml(PresenterIcon.LAYOUT, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.FLOWS)}</button>
-  <button type="button" data-reticle-chat-view-btn="annotations" aria-label="Notes" title="Notes">${hiIconHtml(PresenterIcon.NOTES, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.NOTES)}<span data-reticle-note-count class="reticle-nav-count" hidden></span></button>
-  <button type="button" data-reticle-chat-impact class="reticle-chat-impact" aria-label="Open Impact" title="Impact">${hiIconHtml(PresenterIcon.CHART, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.IMPACT)}<span data-reticle-chat-verdicts class="reticle-nav-count"></span></button>
   <button type="button" data-reticle-chat-view-btn="harness" aria-label="${HARNESS_ROW_TEXT.PAGE_TITLE}" title="${HARNESS_ROW_TEXT.PAGE_TITLE}" hidden>${hiIconHtml(PresenterIcon.PLAY, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.HARNESS)}</button>
+  <button type="button" data-reticle-chat-view-btn="flows" aria-label="Saved flows" title="Saved flows">${hiIconHtml(PresenterIcon.LAYOUT, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.FLOWS)}</button>
+  <button type="button" data-reticle-chat-view-btn="annotations" aria-label="Notes" title="Notes">${hiIconHtml(PresenterIcon.NOTES, NAV_ICON_SIZE)}<span class="reticle-nav-label">${NAV_LABEL.NOTES}<span data-reticle-note-count class="reticle-nav-count" hidden></span></span></button>
+  <button type="button" data-reticle-chat-impact class="reticle-chat-impact" aria-label="Open Impact" title="Impact">${hiIconHtml(PresenterIcon.CHART, NAV_ICON_SIZE)}<span class="reticle-nav-label">${NAV_LABEL.IMPACT}<span data-reticle-chat-verdicts class="reticle-nav-count"></span></span></button>
 </nav>`;
 
 const ANNOTATION_ACTION_ICON_SIZE = PRESENTER_ICON_SIZE.TOOLBAR;
@@ -182,14 +182,16 @@ ${HARNESS_ROW_CSS.replaceAll('[data-reticle-chat-panel]', '[data-reticle-page-pa
 [data-reticle-hud] .reticle-chat-nav button{position:relative;width:var(--reticle-hud-control-size);height:var(--reticle-hud-control-size);justify-self:center;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--reticle-hud-radius-md);padding:0;background:transparent;color:var(--reticle-hud-text-muted);cursor:pointer;}
 [data-reticle-hud] .reticle-chat-nav button:hover{background:var(--reticle-hud-hover);color:var(--reticle-hud-text);}
 [data-reticle-hud] .reticle-chat-nav button[data-capture="1"]{color:var(--reticle-accent);box-shadow:inset 0 -2px var(--reticle-accent);}
-[data-reticle-hud] .reticle-chat-nav button[aria-current="page"],[data-reticle-hud] .reticle-chat-nav button[data-active="1"]{background:var(--reticle-hud-inset);color:var(--reticle-hud-text);}
+[data-reticle-hud] .reticle-chat-nav button[aria-current="page"],[data-reticle-hud] .reticle-chat-nav button[data-active="1"]{background:transparent;color:var(--reticle-hud-text);}
+/* The page you are on: a short straight bar under its name, nothing louder. */
+[data-reticle-hud] .reticle-toolbar-chrome :is(.reticle-chat-nav button[aria-current="page"],.reticle-chat-nav button[data-active="1"],.reticle-tb-btn[data-active="1"])::after{content:"";position:absolute;left:50%;bottom:1px;width:16px;height:2px;border-radius:1px;transform:translateX(-50%);background:currentColor;}
 [data-reticle-hud] .reticle-chat-nav .reticle-hi-icon{opacity:.92;}
 [data-reticle-hud] .reticle-chat-nav button[hidden]{display:none;}
 /* An icon with its name under it, small: every page says what it is without a hover. */
 [data-reticle-hud] .reticle-toolbar-chrome .reticle-chat-nav button{flex-direction:column;gap:2px;width:100%;height:auto;min-height:42px;padding:4px 0 3px;}
 [data-reticle-hud] .reticle-nav-label{display:block;font-size:9px;line-height:1;font-weight:500;letter-spacing:.01em;color:inherit;white-space:nowrap;}
 [data-reticle-hud] .reticle-chat-nav .reticle-nav-count:empty{display:none;}
-[data-reticle-hud] .reticle-chat-nav .reticle-nav-count:not(:empty){position:absolute;top:0;right:0;min-width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center;padding:0 3px;border-radius:99px;background:var(--reticle-accent);color:#fff;font-size:8px;font-weight:700;}
+[data-reticle-hud] .reticle-chat-nav .reticle-nav-count:not(:empty){margin-left:3px;font-variant-numeric:tabular-nums;color:var(--reticle-hud-brand);font-weight:600;}
 [data-reticle-hud] .reticle-chat-nav .reticle-nav-count[hidden]{display:none;}
 [data-reticle-page-panel]{position:absolute;right:0;left:auto;bottom:calc(100% + 8px);z-index:6;box-sizing:border-box;width:var(--reticle-dock-w);max-width:min(var(--reticle-dock-w),calc(100vw - 16px));height:min(var(--reticle-chat-max-h,var(--reticle-chat-h)),calc(100vh - 120px));max-height:min(var(--reticle-chat-max-h,var(--reticle-chat-h)),calc(100vh - 120px));flex-direction:column;overflow:hidden;border-radius:var(--reticle-hud-radius-lg);${HUD_GLASS_PAINT}color:var(--reticle-hud-text);font-size:13px;line-height:1.5;pointer-events:auto;text-align:left;}
 [data-reticle-page-panel][hidden]{display:none!important;}
@@ -481,8 +483,7 @@ export class ChatViews {
   paintImpact(verdicts: number): void {
     this.#verdicts = verdicts;
     const el = this.#root?.querySelector('[data-reticle-chat-verdicts]');
-    if (el !== null && el !== undefined)
-      el.textContent = verdicts > 0 ? `· ${String(verdicts)}` : '';
+    if (el !== null && el !== undefined) el.textContent = verdicts > 0 ? String(verdicts) : '';
   }
   paintAnnotations(items: readonly AnnotationItem[]): void {
     this.#current = [...items];
