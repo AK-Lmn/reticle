@@ -129,7 +129,9 @@ export const EXPLORE_TOOLS: ToolDef[] = [
       /** The runs this drive syncs as (`harness-<uuid>`): what the platform links its check to. */
       runIds: z.array(z.string()).optional(),
       /** One verdict per requested goal, checked by the harness itself. Only `yes` is proved. */
-      goals: z.array(z.object({ text: z.string(), verified: z.string() })).optional(),
+      goals: z
+        .array(z.object({ text: z.string(), verified: z.string(), reason: z.string().optional() }))
+        .optional(),
       /**
        * What the drive set out to do, read from `.reticle` BEFORE it started — every recorded
        * journey with the consequence that must still hold, and the declared intent nobody has

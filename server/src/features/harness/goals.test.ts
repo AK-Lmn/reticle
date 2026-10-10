@@ -55,6 +55,37 @@ describe('the goals a drive was asked to prove (#1316)', () => {
     expect(asserts(p.asked)).toEqual([{ kind: 'text', contains: 'Count is 1' }]);
   });
 
+  /*
+   * A Harness drive asked to "check the page shows "Compose"" synced as Passed: "Compose" was a
+   * sidebar label on the page before the drive did anything, so asserting it at the end held and
+   * proved nothing. A goal the opening page already showed is not checked and is not proved.
+   */
+  it('never checks a goal the page showed before the drive started, and never calls it proved', async () => {
+    const p = page('button "Compose"', 'yes');
+    const checks = await checkGoals(p.invoke, ['Compose'], 'link "Compose" heading "Deployments"');
+    expect(asserts(p.asked)).toEqual([]);
+    expect(checks).toEqual([
+      {
+        text: 'Compose',
+        verified: 'unknown',
+        reason: 'it was on the page before the drive started, so seeing it proves nothing',
+      },
+    ]);
+    expect(unprovedGoals(checks)).toContain(
+      '"Compose" (it was on the page before the drive started',
+    );
+  });
+
+  it('still checks the goals the opening page did not show', async () => {
+    const p = page('heading "Saved" button "Compose"', 'yes');
+    const checks = await checkGoals(p.invoke, ['Compose', 'Saved'], 'link "Compose"');
+    expect(asserts(p.asked)).toEqual([{ kind: 'text', contains: 'Saved' }]);
+    expect(checks.map((c) => [c.text, c.verified])).toEqual([
+      ['Compose', 'unknown'],
+      ['Saved', 'yes'],
+    ]);
+  });
+
   it('counts a check that could not run as not proved', async () => {
     const checks = await checkGoals(() => Promise.reject(new Error('tab gone')), ['Ada']);
     expect(checks).toEqual([{ text: 'Ada', verified: 'unknown' }]);

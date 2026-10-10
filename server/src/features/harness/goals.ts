@@ -20,7 +20,12 @@ export interface GoalCheck {
   text: string;
   /** The engine's verdict on it: only `yes` is proved. */
   verified: string;
+  /** Why it was not checked, when it was not. */
+  reason?: string;
 }
+
+/** Said of a goal the page showed before the drive did anything. */
+const ALREADY_SHOWN = 'it was on the page before the drive started, so seeing it proves nothing';
 
 /** The observable goals in a persona: whatever it quoted. */
 export function goalsIn(persona: string | undefined): string[] {
@@ -42,11 +47,20 @@ export function goalsIn(persona: string | undefined): string[] {
 export async function checkGoals(
   invoke: (name: string, args: Record<string, unknown>) => Promise<unknown>,
   goals: readonly string[],
+  /** The page as it read before the drive: a goal it already showed proves nothing at the end. */
+  opening?: string,
 ): Promise<GoalCheck[]> {
-  const texts = [
+  const all = [
     ...new Set(goals.slice(0, MAX_GOALS).map((g) => g.trim().slice(0, MAX_GOAL_LENGTH))),
   ].filter((t) => 0 < t.length);
-  if (0 === texts.length) return [];
+  const before = all.filter((t) => true === opening?.includes(t));
+  const texts = all.filter((t) => !before.includes(t));
+  const unchecked = (text: string): GoalCheck => ({
+    text,
+    verified: Verified.UNKNOWN,
+    reason: ALREADY_SHOWN,
+  });
+  if (0 === texts.length) return before.map(unchecked);
   let page: string | undefined;
   try {
     const tree = asRecord(await invoke(ReticleTool.SNAPSHOT, { mode: SNAPSHOT_FULL }))['tree'];
@@ -65,13 +79,26 @@ export async function checkGoals(
   }
   // A quote the page read did not show is a "no" only beside one it did: with none shown, every
   // quote rests on the recorded assert.
-  return texts.map((text) => ({
-    text,
-    verified: 0 === shown.length || shown.includes(text) ? verified : Verified.NO,
-  }));
+  return all.map((text) =>
+    before.includes(text)
+      ? unchecked(text)
+      : { text, verified: 0 === shown.length || shown.includes(text) ? verified : Verified.NO },
+  );
 }
 
 const SNAPSHOT_FULL = 'full';
+
+/** The page as it reads now, or undefined when it cannot be read. Taken before a drive starts. */
+export async function readOpening(
+  invoke: (name: string, args: Record<string, unknown>) => Promise<unknown>,
+): Promise<string | undefined> {
+  try {
+    const tree = asRecord(await invoke(ReticleTool.SNAPSHOT, { mode: SNAPSHOT_FULL }))['tree'];
+    return 'string' === typeof tree ? tree : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function allOf(texts: readonly string[]): Record<string, unknown> {
   const each = texts.map((contains) => ({ kind: PredicateKind.TEXT, contains }));
@@ -105,7 +132,7 @@ export function unprovedGoals(checks: readonly GoalCheck[]): string | undefined 
   const missed = checks.filter((c) => Verified.YES !== c.verified);
   if (0 === missed.length) return undefined;
   return (
-    `Not proved: ${missed.map((c) => `"${c.text}" (${c.verified})`).join(', ')}. ` +
+    `Not proved: ${missed.map((c) => `"${c.text}" (${c.reason ?? c.verified})`).join(', ')}. ` +
     'The drive did not finish the job it was given, whatever its own account says.'
   );
 }

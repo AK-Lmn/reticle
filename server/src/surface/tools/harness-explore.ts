@@ -46,7 +46,13 @@ import {
 } from '@/features/harness/harness.js';
 import { reticleToolset } from './harness-toolset.js';
 import { noteDriveLine } from '@/features/harness/drive-runs.js';
-import { checkExpect, checkGoals, goalsIn, type GoalCheck } from '@/features/harness/goals.js';
+import {
+  checkExpect,
+  checkGoals,
+  readOpening,
+  goalsIn,
+  type GoalCheck,
+} from '@/features/harness/goals.js';
 import { instrumentationOf } from '@/portal/session/recorded-gaps.js';
 import { getSessionMetrics } from '@/telemetry/session-metrics.js';
 
@@ -291,6 +297,10 @@ export async function exploreApp(
     },
   });
   const narrate = narrator(deps, options);
+  const invoke = (name: string, args: Record<string, unknown>): Promise<unknown> =>
+    toolset.invoke(name, args);
+  // Read before anything is driven: a goal this page already shows proves nothing at the end.
+  const opening = await readOpening(invoke);
   narrate(`Harness is driving${options.focus === undefined ? '' : `: ${options.focus}`}`);
   const drive = await runHarness(driver, toolset, {
     ...steering(options),
@@ -319,10 +329,8 @@ export async function exploreApp(
   // drove unsaved — work paid for and thrown away. Saving is not a decision any model gets to make
   // and not something a step budget gets to cut off, so it happens here, after the loop, always.
   await bankOpenRecording(toolset, drive, options.focus);
-  const invoke = (name: string, args: Record<string, unknown>): Promise<unknown> =>
-    toolset.invoke(name, args);
   const goals = [
-    ...(await checkGoals(invoke, options.goals ?? goalsIn(options.focus))),
+    ...(await checkGoals(invoke, options.goals ?? goalsIn(options.focus), opening)),
     ...(options.expect === undefined ? [] : [await checkExpect(invoke, options.expect)]),
   ];
 
