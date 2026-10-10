@@ -31,7 +31,8 @@ export const ACCOUNT_NEXT = {
   NO_CREDITS: (said: string): string =>
     `${said} Reticle Harness cannot run until the user gets more credits on the dashboard's Plan and usage page.`,
   locked: (percent: number, missing: string): string =>
-    `Setup score ${String(percent)}%: Reticle Harness needs ${String(UNLOCK_PERCENT)}%. ${missing} Offer to close these gaps, then drive one flow to raise the score.`,
+    // The platform's own sentence already names the score and the gaps: said once, not twice.
+    `${0 < missing.length ? missing : `Setup score ${String(percent)}%: Reticle Harness needs ${String(UNLOCK_PERCENT)}%.`} Offer to close these gaps, then drive one flow to raise the score.`,
   OFF: 'Reticle Harness is off for this project. The user can switch it on in the HUD (the Harness row at the foot of the Agent Log) or on the dashboard.',
   NO_PROVIDER:
     'The platform has no model provider set, so Reticle Harness cannot run now. Tell the user; it is not on their side.',
