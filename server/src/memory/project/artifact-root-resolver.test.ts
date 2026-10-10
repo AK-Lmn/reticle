@@ -248,3 +248,29 @@ describe('the projects this machine knows', () => {
     }
   });
 });
+
+/**
+ * `init --app apps/web` writes web's projectId into the monorepo root's `.reticle.json` too: a
+ * pointer, so an agent at the root reaches the app. The root then read as web's own home, and a
+ * second checkout of web — same id, served from outside both — had its flows written into the
+ * FIRST checkout's root with no warning. A root whose id an app inside it also declares is pointing
+ * at that app; it is not the app.
+ */
+describe('a monorepo root that points at one of its apps', () => {
+  const MONO = join(sep, 'repo', 'mono');
+  const WEB = join(MONO, 'apps', 'web');
+  const WEB_ID = 'mono-web-4159';
+
+  it('does not take a second checkout’s artifacts into the root', () => {
+    const resolved = artifactRootResolver(join(MONO, ReticleDir.ROOT), {
+      candidates: () => [
+        { projectId: WEB_ID, directory: MONO },
+        { projectId: WEB_ID, directory: WEB },
+      ],
+      daemonIsProject: () => true,
+      servingDirectory: () => CLONE,
+    })(asProjectId(WEB_ID), 'http://localhost:16599');
+    expect(resolved.root).not.toBe(join(MONO, ReticleDir.ROOT));
+    expect(inUnmatched(resolved.root, WEB_ID)).toBe(true);
+  });
+});
