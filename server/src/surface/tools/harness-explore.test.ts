@@ -671,6 +671,36 @@ describe('a saved plan the platform refuses', () => {
     ]);
   });
 
+  /** A planned run of a model drive answered `creditsSpent` absent, read as a free 15-step run. */
+  it('reports what its lanes spent', async () => {
+    vi.stubGlobal('fetch', platformWith(plan({ kind: 'act', goal: 'sign in' }), []));
+    const unlocked = () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({ provider: 'jev', harnessEnabled: true, harnessUnlocked: true }),
+          ),
+      });
+    const spending: ModelDriver = {
+      turn: (): Promise<ModelTurn> =>
+        Promise.resolve({
+          text: '',
+          calls: [
+            { id: '1', name: 'reticle_assert', args: {} },
+            { id: '2', name: FINISH_TOOL.name, args: { summary: '', creditsSpent: 2 } },
+          ],
+        }),
+    };
+    const result = await exploreApp(depsWithFlows([]), linked, {
+      planId: 'hp_1',
+      driver: spending,
+      configFetch: unlocked,
+    });
+    expect(result.drive.creditsSpent).toBe(2);
+  });
+
   it('is not refused by the lock when the plan only replays saved flows', async () => {
     const posted: string[] = [];
     vi.stubGlobal('fetch', platformWith(plan({ kind: 'replay', flow: 'signin' }), posted));

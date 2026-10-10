@@ -32,7 +32,9 @@ import {
   RunFramework,
   RunProfile,
   RunTrigger,
+  PredicateKind,
   Verified,
+  VerifiedReason,
   driveFlowStatus,
   type DrivenBy,
   type JournalAction,
@@ -212,6 +214,20 @@ export function noteHarnessGoal(harness: string, met: boolean | undefined): void
   goalsMissed.set(harness, met);
 }
 
+/** The phrase `describeWaitTarget` opens a route claim with, as the journal records it. */
+const ROUTE_CLAIM = 'a route change';
+const ABSENCE_OF = 'the absence of ';
+
+/**
+ * Whether a recorded check claimed nothing but a route (or leaving one): the Harness driver's guess
+ * about where a click goes, which `harness/route-guess.ts` explains. Kept here because a run fold
+ * reads the journal's words, not the predicate.
+ */
+function claimsOnlyRoute(claim: string, kind: string | undefined): boolean {
+  if (PredicateKind.ROUTE === kind) return true;
+  return PredicateKind.NOT === kind && claim.startsWith(`${ABSENCE_OF}${ROUTE_CLAIM}`);
+}
+
 /**
  * One Harness drive, as its own run: named for the journey it was asked to complete, and credited to
  * the Harness rather than to the agent whose tab it shared. The journey reads as one flow, graded by
@@ -227,8 +243,14 @@ function harnessRunFrom(
     runId: harnessRunId(by.harness) ?? defaultRunId(),
   });
   if (input === undefined) return undefined;
+  // The driver's own wrong guess about where a click goes is not a failed check of the app.
+  const checks = input.checks.map((check) =>
+    Verified.NO === check.status && claimsOnlyRoute(check.predicate, check.kind)
+      ? { ...check, status: Verified.UNKNOWN, reason: VerifiedReason.INCONCLUSIVE }
+      : check,
+  );
   const count = (verified: string): number =>
-    input.checks.filter((check) => verified === check.status).length;
+    checks.filter((check) => verified === check.status).length;
   const status = driveFlowStatus({
     held: count(Verified.YES),
     failed: count(Verified.NO),
@@ -237,6 +259,7 @@ function harnessRunFrom(
   const first = actions.reduce((min, action) => Math.min(min, action.at), Number.MAX_SAFE_INTEGER);
   return {
     ...input,
+    checks,
     durationMs: Math.max(0, input.durationMs - first),
     agent: { id: harnessAgentId(by.driver), kind: RunAgentKind.CODING_AGENT },
     trigger: {

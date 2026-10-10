@@ -230,6 +230,27 @@ describe('a Harness drive in the same tab', () => {
     expect(runs.find((run) => 'harness-h-open' === run.runId)?.flows[0]?.status).toBe('skipped');
   });
 
+  /*
+   * The driver declared that a Mine/Team toggle would leave /overview; it did not, and a run whose
+   * every goal was met synced as failed. Its own wrong guess is undecided, not a failed check.
+   */
+  it("never counts the driver's missed route guess as a failed check", () => {
+    const guess = { ...by, harness: 'h-guess' };
+    const missed: JournalAction = {
+      ...action(Verified.NO, "the absence of a route change containing '/overview'", 70),
+      effect: {
+        claim: "the absence of a route change containing '/overview'",
+        verified: Verified.NO,
+        kind: 'not',
+      },
+      drivenBy: guess,
+    };
+    const runs = driveRunsFrom([{ ...harness(Verified.YES, 40), drivenBy: guess }, missed], DEPS);
+    const drive = runs.find((run) => 'harness-h-guess' === run.runId);
+    expect(drive?.flows[0]?.status).toBe('pass');
+    expect(drive?.checks.map((check) => check.status)).toEqual([Verified.YES, Verified.UNKNOWN]);
+  });
+
   it('leaves a session the Harness never touched exactly one run', () => {
     expect(driveRunsFrom([action(Verified.YES)], DEPS).map((run) => run.runId)).toEqual(['run_1']);
   });

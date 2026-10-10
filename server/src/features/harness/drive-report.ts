@@ -19,6 +19,7 @@
  */
 
 import { appFindings } from './app-findings.js';
+import { MSG_ROUTE_GUESS_MISSED, claimsOnlyRoute } from './route-guess.js';
 import { asRecord, asString, ReticleTool, Verified } from '@reticlehq/core';
 import type { ToolOutcome } from './harness.js';
 
@@ -224,6 +225,11 @@ function describeClaim(until: unknown): string | undefined {
   return kind;
 }
 
+/** A `no` on a click whose only claim was a route: the driver's guess, not the app (route-guess.ts). */
+function routeGuessMissed(args: Record<string, unknown>, result: Record<string, unknown>): boolean {
+  return Verified.NO === result['verified'] && claimsOnlyRoute(args['until']);
+}
+
 /** Reduce the raw call log to the actions that actually drove the app. */
 export function drivenSteps(toolCalls: readonly ToolOutcome[]): DrivenStep[] {
   const steps: DrivenStep[] = [];
@@ -236,11 +242,20 @@ export function drivenSteps(toolCalls: readonly ToolOutcome[]): DrivenStep[] {
     if (refusedAsDestructive(call)) continue;
     const action =
       ReticleTool.NAVIGATE === call.name ? 'navigate' : (asString(args['action']) ?? 'act');
+    const guessMissed = !call.isError && routeGuessMissed(args, result);
     steps.push({
       action,
       target: targetOf(args, result),
-      verified: call.isError ? 'error' : asString(result['verified']),
-      because: call.isError ? asString(result['error']) : asString(result['because']),
+      verified: call.isError
+        ? 'error'
+        : guessMissed
+          ? Verified.UNKNOWN
+          : asString(result['verified']),
+      because: call.isError
+        ? asString(result['error'])
+        : guessMissed
+          ? MSG_ROUTE_GUESS_MISSED
+          : asString(result['because']),
       claimed: describeClaim(args['until']),
       evidence: call.isError
         ? []
@@ -299,6 +314,8 @@ export function checkTally(toolCalls: readonly ToolOutcome[]): {
       (ReticleTool.ACT_AND_WAIT === call.name && args['until'] !== undefined);
     if (!isCheck || call.isError) continue;
     const result = asRecord(call.result);
+    // The driver's own wrong guess about the route checked the driver, not the app.
+    if (routeGuessMissed(args, result)) continue;
     const effect = asRecord(result['effect']);
     const control =
       asString(effect['testid']) ??
@@ -321,19 +338,33 @@ export function checkTally(toolCalls: readonly ToolOutcome[]): {
  * a page change, beside a refund that failed, is NOT "proved its checks"; that line ended a run
  * where the journey it was asked to prove had failed.
  */
-export function verdictLine(tally: { held: number; failed: number; undecided: number }): string {
+export function verdictLine(
+  tally: { held: number; failed: number; undecided: number },
+  goalMet?: boolean,
+): string {
   const total = tally.held + tally.failed + tally.undecided;
   if (0 === total) return 'NOT PROVED: the drive ran no check.';
   const counts = `${String(tally.held)} of ${String(total)} check(s) held, ${String(tally.failed)} failed, ${String(tally.undecided)} undecided`;
   if (0 < tally.failed) return `NOT PROVED — ${counts}. The failures below are findings.`;
   if (0 < tally.undecided) return `NOT PROVED — ${counts}.`;
+  // Checks that held on the way are not the journey done.
+  if (false === goalMet) return `NOT PROVED — ${counts}, but the goal was not reached.`;
   return `PROVED — ${counts}.`;
+}
+
+/** Whether the run is proved, exactly as its headline says: the `proved` an answer carries. */
+export function runProved(
+  tally: { held: number; failed: number; undecided: number },
+  goalMet?: boolean,
+): boolean {
+  return verdictLine(tally, goalMet).startsWith('PROVED');
 }
 
 export function describeDrive(
   toolCalls: readonly ToolOutcome[],
   savedFlows: readonly string[],
   unverifiedFlows: readonly string[] = [],
+  goalMet?: boolean,
 ): string {
   const steps = drivenSteps(toolCalls);
   const replays = replayedFlows(toolCalls);
@@ -387,7 +418,7 @@ export function describeDrive(
 
   const pages = pagesReached(toolCalls);
   const lines: string[] = [
-    verdictLine(checkTally(toolCalls)),
+    verdictLine(checkTally(toolCalls), goalMet),
     ...(replayLine === undefined ? [] : [replayLine]),
     `Drove ${String(steps.length)} action(s): ${String(proved.length)} proved, ` +
       `${String(failed.length)} failed, ${String(undecided.length)} not decided.`,

@@ -458,3 +458,42 @@ describe('the same check made again', () => {
     });
   });
 });
+
+/*
+ * Three runs whose every goal was met read "NOT PROVED … The failures below are findings": each
+ * failure was the driver declaring that an in-page toggle would change the route.
+ */
+describe("the driver's wrong guess about the route", () => {
+  const guessed = call(
+    'reticle_act_and_wait',
+    {
+      ref: 'e127',
+      action: 'click',
+      until: { kind: 'not', predicate: { kind: 'route', contains: '/runs' } },
+    },
+    { element: 'button "Team"', verified: 'no', because: 'the declared consequence did not hold' },
+  );
+  const held = call(
+    'reticle_assert',
+    { predicate: { kind: 'text', contains: 'Done' } },
+    { verified: 'yes' },
+  );
+
+  it('is not a failed check, a failed action or a finding', () => {
+    expect(checkTally([guessed, held])).toEqual({ held: 1, failed: 0, undecided: 0 });
+    const account = describeDrive([guessed, held], []);
+    expect(account).toMatch(/^PROVED/);
+    expect(account).not.toContain('FAILED');
+    expect(account).not.toContain('findings');
+    expect(account).toContain("the driver's wrong guess, not an app defect");
+  });
+
+  it('still fails a click whose claim was more than a route', () => {
+    const net = call(
+      'reticle_act_and_wait',
+      { ref: 'e1', action: 'click', until: { kind: 'net', method: 'POST' } },
+      { verified: 'no' },
+    );
+    expect(checkTally([net]).failed).toBe(1);
+  });
+});

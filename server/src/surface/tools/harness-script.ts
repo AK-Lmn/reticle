@@ -367,6 +367,10 @@ async function runPlan(
     ),
     // Unmet if any journey's goal was judged unmet; met only when every judged one was.
     ...goalOfRun(run.drives),
+    // What every lane cost, as the platform said; a planned run dropped it and read as free.
+    ...(run.drives.some((d) => d.creditsSpent !== undefined)
+      ? { creditsSpent: sum((r) => r.creditsSpent ?? 0) }
+      : {}),
   };
   const reconciled = reconcileFlows(before, await reads.flows.list(), run.toolCalls);
   const runIds = lanes.all().flatMap((id) => {

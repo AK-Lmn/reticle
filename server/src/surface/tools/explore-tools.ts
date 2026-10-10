@@ -52,7 +52,12 @@ import {
   MSG_NO_HARNESS_KEY,
 } from './harness-explore.js';
 import { EXPLORE_NEEDS } from '@/features/harness/drivers.js';
-import { checkTally, describeDrive, replayedFlows } from '@/features/harness/drive-report.js';
+import {
+  checkTally,
+  describeDrive,
+  replayedFlows,
+  runProved,
+} from '@/features/harness/drive-report.js';
 import { StopReason, type HarnessResult } from '@/features/harness/harness.js';
 import type { ExploreResult } from './harness-explore.js';
 
@@ -398,6 +403,7 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     planId,
     planUrl,
   } = explored;
+  const checks = checkTally(drive.toolCalls);
   return {
     stopReason: drive.stopReason,
     driver: driverName,
@@ -405,8 +411,9 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     savedFlows: [...savedFlows],
     rewroteFlows: [...rewroteFlows],
     unverifiedFlows: [...unverifiedFlows],
-    proved: drive.proved,
-    checks: checkTally(drive.toolCalls),
+    // The headline's own word, so the answer never says NOT PROVED beside `proved: true`.
+    proved: runProved(checks, drive.goalMet),
+    checks,
     ...(drive.goalMet === undefined ? {} : { goalMet: drive.goalMet }),
     ...(runIds === undefined ? {} : { runIds: [...runIds] }),
     // Where the user sees this run, and what it cost: the two things an agent is asked after a run.
@@ -419,13 +426,18 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
       : { journeys: journeys.map((j) => ({ title: j.title, status: j.status })) }),
     goals: [...goals],
     plan: { summary: plan.summary, steps: [...plan.steps] },
-    // Derived, not narrated. The driver's own `summary` is appended only when it said
-    // something — it is the one part of this a model authored, so it goes last and is labelled.
+    // Derived, not narrated. The driver's own account stays out of it, in `driverAccount`: it
+    // named flows it never saved ("saved 1 flow(s)" beside "its recording was not saved"), and a
+    // summary must never contradict itself.
     summary: [
       ...(planLines ?? []),
-      describeDrive(drive.toolCalls, [...savedFlows, ...rewroteFlows], unverifiedFlows),
+      describeDrive(
+        drive.toolCalls,
+        [...savedFlows, ...rewroteFlows],
+        unverifiedFlows,
+        drive.goalMet,
+      ),
       ...[unprovedGoals(goals)].filter((line): line is string => line !== undefined),
-      ...(0 === drive.summary.length ? [] : [`The driver's own account: ${drive.summary}`]),
     ].join('\n'),
     ...(0 === drive.summary.length ? {} : { driverAccount: drive.summary }),
     ...(drive.error === undefined ? {} : { error: drive.error }),
