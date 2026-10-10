@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DriveOrigin,
+  DriveRefusedError,
   DriveStatus,
   awaitDrive,
   driveRecord,
@@ -187,5 +188,23 @@ describe('a Harness drive the agent can poll', () => {
     heldDrive('h10');
     expect(takeDriveNotes('harness-h10')).toEqual([]);
     expect(takeDriveNotes()).toEqual([]);
+  });
+});
+
+/** Releasing a tab reported a run the Harness switch refused as a "broken" drive. */
+describe('a drive refused before it began', () => {
+  it('reads as refused, not broken, in its record and its note', async () => {
+    startDrive({
+      harness: 'refused',
+      runId: 'harness-refused',
+      origin: DriveOrigin.AGENT,
+      now: () => 1000,
+      persist: () => Promise.resolve(),
+      run: () =>
+        Promise.reject(new DriveRefusedError('The Reticle Harness is off for this project.')),
+    });
+    await awaitDrive('harness-refused', 1000);
+    expect(driveRecord('harness-refused')?.status).toBe(DriveStatus.REFUSED);
+    expect(takeDriveNotes().join(' ')).toContain('finished (refused: The Reticle Harness is off');
   });
 });

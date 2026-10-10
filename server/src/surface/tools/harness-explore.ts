@@ -54,7 +54,7 @@ import {
   type ToolOutcome,
 } from '@/features/harness/harness.js';
 import { reticleToolset } from './harness-toolset.js';
-import { noteDriveLine } from '@/features/harness/drive-runs.js';
+import { DriveRefusedError, noteDriveLine } from '@/features/harness/drive-runs.js';
 import {
   checkExpect,
   checkGoals,
@@ -330,7 +330,7 @@ export async function exploreApp(
   options: ExploreOptions = {},
 ): Promise<ExploreResult> {
   const refusal = await refusedForPlan(env, options);
-  if (refusal !== undefined) throw new Error(refusal);
+  if (refusal !== undefined) throw new DriveRefusedError(refusal);
   // The flows a drive reads and diffs are the PROJECT's, which is where its saves land.
   const reads = withProjectFlows(deps, options.sessionId);
   // No journey named: plan the drive first. The platform's Harness proposes the people worth being;

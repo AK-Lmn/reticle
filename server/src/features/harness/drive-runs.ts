@@ -17,8 +17,16 @@ export const DriveStatus = {
   DONE: 'done',
   STOPPED: 'stopped',
   BROKEN: 'broken',
+  /** Refused before it drove anything (switched off, no credits, locked): not a broken drive. */
+  REFUSED: 'refused',
 } as const;
 export type DriveStatus = (typeof DriveStatus)[keyof typeof DriveStatus];
+
+/**
+ * Thrown when the platform or the gate refuses a drive before it drives. Releasing a tab reported
+ * such a run as "broken", which reads as a fault in the Harness; a refusal is a refusal.
+ */
+export class DriveRefusedError extends Error {}
 
 /** Who asked for the drive. */
 export const DriveOrigin = { AGENT: 'agent', HUD: 'hud', CHAT: 'chat' } as const;
@@ -120,7 +128,7 @@ export function startDrive(start: StartDrive): DriveRecord {
       (error: unknown) => {
         entry.record = {
           ...entry.record,
-          status: DriveStatus.BROKEN,
+          status: error instanceof DriveRefusedError ? DriveStatus.REFUSED : DriveStatus.BROKEN,
           error: error instanceof Error ? error.message : String(error),
         };
       },
