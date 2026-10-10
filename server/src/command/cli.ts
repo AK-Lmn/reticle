@@ -153,25 +153,31 @@ async function handleInit(parsed: {
   // RETICLE_PORT counts as explicit, as it does for every other command: resolved once here, so the
   // port written into the project and the port the runtime phase binds are the same number.
   const explicit = parsed.port ?? portFromEnv(process.env);
-  const port = await portForInit(explicit, readProjectPort(cwd), readProjectId(cwd), {
-    // The registry names a daemon's owner; an older daemon that never registered is known by the
-    // projects its connected pages announced.
-    daemonProjects: async (p) => {
-      const claimed = daemonProjectAt(p, reticleStateHome());
-      if (claimed !== undefined && claimed.length > 0) return [claimed];
-      const { sessions } = summarizeStatus(await fetchStatus(p));
-      return [
-        ...new Set(sessions.flatMap((s) => (s.projectId === undefined ? [] : [s.projectId]))),
-      ];
+  const port = await portForInit(
+    explicit,
+    readProjectPort(cwd),
+    readProjectId(cwd),
+    {
+      // The registry names a daemon's owner; an older daemon that never registered is known by the
+      // projects its connected pages announced.
+      daemonProjects: async (p) => {
+        const claimed = daemonProjectAt(p, reticleStateHome());
+        if (claimed !== undefined && claimed.length > 0) return [claimed];
+        const { sessions } = summarizeStatus(await fetchStatus(p));
+        return [
+          ...new Set(sessions.flatMap((s) => (s.projectId === undefined ? [] : [s.projectId]))),
+        ];
+      },
+      daemonPresent: async (p) =>
+        presenceIsUsable(await probePresence(p, { tcpOpen: probeDaemon, status: fetchStatus })),
+      pickPort: (p) => pickDaemonPortToBind(p),
+      daemonStartedHere: (p) => {
+        const started = readDaemonRegistry(reticleStateHome()).find((e) => e.port === p)?.cwd;
+        return started !== undefined && isSameOrAbove(started, cwd);
+      },
     },
-    daemonPresent: async (p) =>
-      presenceIsUsable(await probePresence(p, { tcpOpen: probeDaemon, status: fetchStatus })),
-    pickPort: (p) => pickDaemonPortToBind(p),
-    daemonStartedHere: (p) => {
-      const started = readDaemonRegistry(reticleStateHome()).find((e) => e.port === p)?.cwd;
-      return started !== undefined && isSameOrAbove(started, cwd);
-    },
-  });
+    cwd,
+  );
   const io = buildNodeIo(cwd, serverInitHost(), { stderr: true === parsed.json });
   const result = runInit(
     {

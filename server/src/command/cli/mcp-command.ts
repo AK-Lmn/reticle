@@ -38,6 +38,15 @@ import { homedir } from 'node:os';
 import type { PlatformPaths } from '@/command/setup/agent-configs.js';
 
 /**
+ * Whether the daemon this proxy starts hides its browser. A daemon on a port nobody chose — the
+ * requested one served another project, so this one was moved — was opening a visible browser the
+ * person never asked for, on a port nothing records. Only the requested port gets the default.
+ */
+export function spawnsHeadless(headless: boolean, requested: number, resolved: number): boolean {
+  return headless || requested !== resolved;
+}
+
+/**
  * MCP proxy mode: ensures the daemon is running, then bridges Claude Code's
  * stdin/stdout to the daemon's SSE endpoint. This is the recommended way to
  * configure Reticle in.mcp.json — users never need to manage the daemon manually.
@@ -143,7 +152,7 @@ export async function handleMcp(opts: {
     }
     const daemonArgs = daemonSpawnArgs({
       port,
-      headless,
+      headless: spawnsHeadless(headless, opts.port, port),
       http,
       ...(driveUrl !== undefined ? { driveUrl } : {}),
       ...(httpPort !== undefined ? { httpPort } : {}),
