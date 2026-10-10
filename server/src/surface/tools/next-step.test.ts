@@ -34,6 +34,17 @@ describe('what the agent is told to do next', () => {
     expect(verdict(r)).toBe(NextText.SYNC_PROBLEM('the platform answered 401'));
   });
 
+  /** One flow the platform refused was named on every answer of a whole session. */
+  it('names a sync problem once, and again only when it changes', () => {
+    const state = { lastError: 'drive-x: flow failed validation' };
+    const r = root({ 'cloud.json': { projectId: 'p' }, 'request.json': { at: NOW } });
+    writeFileSync(join(r, 'cloud-state.json'), JSON.stringify(state));
+    expect(verdict(r)).toBe(NextText.SYNC_PROBLEM(state.lastError));
+    expect(verdict(r)).toBe(NextText.FINISH_LINKED);
+    writeFileSync(join(r, 'cloud-state.json'), JSON.stringify({ lastError: 'answered 401' }));
+    expect(verdict(r)).toBe(NextText.SYNC_PROBLEM('answered 401'));
+  });
+
   it('on a linked project with nothing wrong, says the run syncs on its own', () => {
     const r = root({ 'cloud.json': { projectId: 'p' }, 'request.json': { at: NOW } });
     expect(verdict(r)).toBe(NextText.FINISH_LINKED);

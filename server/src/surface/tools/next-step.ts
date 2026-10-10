@@ -47,6 +47,11 @@ interface RootState {
   declareAsks: number;
   /** Told about the saved flows already, which is said once per project. */
   replayTold: boolean;
+  /**
+   * The sync problem already said. One flow the platform refused was repeated on every answer for a
+   * whole session; a problem is said once, and again only when it changes.
+   */
+  problemTold?: string;
 }
 
 const roots = new Map<string, RootState>();
@@ -162,8 +167,9 @@ export function nextStep(input: NextStepInput): string | undefined {
     if (0 < saved) return NextText.REPLAY(saved);
   }
   const problem = sends ? syncProblem(root, input.now) : undefined;
-  if (problem !== undefined && (input.verdict || quietDue)) {
+  if (problem !== undefined && problem !== state.problemTold && (input.verdict || quietDue)) {
     state.lastQuietAt = state.calls;
+    state.problemTold = problem;
     return NextText.SYNC_PROBLEM(problem);
   }
   // Not on the declare call itself, which is the answer to this line.
