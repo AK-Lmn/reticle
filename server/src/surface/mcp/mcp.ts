@@ -567,7 +567,9 @@ function installUnadvertisedToolHelp(
       return original(asCallOf(request, moved.tool, moved.action), extra);
     }
     const help = name === undefined ? undefined : unadvertisedToolHelp(name, advertised, known);
-    if (help !== undefined) throw new McpError(ErrorCode.InvalidParams, help);
+    // A failed RESULT, not a JSON-RPC error: a client that reads only `result` rendered the error
+    // as an empty success, and the agent believed `reticle_flow_save` had saved its flow.
+    if (help !== undefined) return { content: [{ type: 'text', text: help }], isError: true };
     return original(request, extra);
   });
 }
