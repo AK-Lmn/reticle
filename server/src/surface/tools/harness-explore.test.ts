@@ -22,6 +22,8 @@ import {
   withLinkedCredential,
   MSG_NO_HARNESS_KEY,
   MSG_HARNESS_DISABLED,
+  MSG_GATE_PROMPT_LEAD,
+  refusedByPlatform,
   MSG_HARNESS_UNCLAIMED,
   MSG_HARNESS_UNCONFIRMED,
 } from './harness-explore.js';
@@ -454,6 +456,26 @@ describe('turning the harness off', () => {
         configFetch: platformSays({ provider: 'jev', harnessEnabled: false }),
       }),
     ).rejects.toThrow(MSG_HARNESS_DISABLED);
+  });
+
+  /**
+   * The platform's lock outranks its switch. A fresh tab has recorded no gaps, so the daemon's own
+   * per-tab check passed, the project-wide lock was ignored, and the person was told the Harness was
+   * "off" when it was locked below the coverage gate — the one refusal that names a fix.
+   */
+  it('says it is locked, with the prompt, before saying it is off', async () => {
+    const refusal = refusedByPlatform(linked, {
+      configFetch: platformSays({
+        provider: 'jev',
+        harnessEnabled: false,
+        harnessUnlocked: false,
+        coverageScore: 0.75,
+        harnessLock: { reason: 'Harness unlocks at 80%.', prompt: 'Add test ids.' },
+      }),
+    });
+    await expect(refusal).resolves.toBe(
+      `Harness unlocks at 80%.\n\n${MSG_GATE_PROMPT_LEAD}\nAdd test ids.`,
+    );
   });
 
   it('drives when the platform says the harness is on', async () => {

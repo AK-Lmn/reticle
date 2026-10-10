@@ -646,6 +646,13 @@ export async function refusedByPlatform(
   const config = await platformConfig(env, options);
   // It needs a confirmed yes, not the absence of a no. The platform also checks on every turn.
   if (config === undefined) return MSG_HARNESS_UNCONFIRMED;
+  // The project-wide lock before the switch: a fresh tab passes the per-tab gate with no gaps
+  // recorded, and "off" hid the one refusal that names its fix.
+  const gate = config.gate;
+  if (false === gate?.unlocked && gate.reason !== undefined)
+    return gate.prompt === undefined
+      ? gate.reason
+      : `${gate.reason}\n\n${MSG_GATE_PROMPT_LEAD}\n${gate.prompt}`;
   if (!config.harnessEnabled) return MSG_HARNESS_DISABLED;
   // Before entitlement: no credits left is why most workspaces are not entitled, said as the HUD says it.
   if (config.credits !== undefined && creditsSpent(config.credits))
