@@ -73,6 +73,30 @@ describe('the Harness-off refusal', () => {
   });
 });
 
+/** A persona's typed password reached the synced run's text and the platform. */
+describe('a persona that names a password', () => {
+  it('is driven with the password redacted from everything the drive keeps', async () => {
+    const seen: string[] = [];
+    const watching: ModelDriver = {
+      turn: (input): Promise<ModelTurn> => {
+        seen.push(input.system);
+        return finishing('').turn(input);
+      },
+    };
+    const result = await exploreApp(
+      depsWithFlows([]),
+      {},
+      {
+        driver: watching,
+        skipPlatformConfig: true,
+        focus: 'Ana signs in with password: hunter2',
+      },
+    );
+    expect(seen.join(' ')).toContain('password: [redacted]');
+    expect(JSON.stringify([seen, result])).not.toContain('hunter2');
+  });
+});
+
 describe('a drive that did nothing', () => {
   it('never reports its goal met, whatever the driver says', async () => {
     const claiming: ModelDriver = {

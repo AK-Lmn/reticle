@@ -52,7 +52,6 @@ import {
   MSG_NO_HARNESS_KEY,
 } from './harness-explore.js';
 import { EXPLORE_NEEDS } from '@/features/harness/drivers.js';
-import { personaCredentials } from '@/features/harness/platform/persona-credentials.js';
 import {
   checkTally,
   describeDrive,
@@ -368,12 +367,8 @@ function statusOf(stopReason: StopReason): DriveStatus {
 }
 
 /** The shipped drive: `exploreApp`, steered by the registry, reported as the tool's answer. */
-const exploreDrive: ExploreDrive = async (deps, given, args, harness, control) => {
-  // The credentials a persona names fill its sign-in fields here; only the redacted text leaves.
-  const named =
-    'string' === typeof args['persona'] ? personaCredentials(args['persona']) : undefined;
-  const persona = named?.persona;
-  const env = named === undefined ? given : { ...given, ...named.secrets };
+const exploreDrive: ExploreDrive = async (deps, env, args, harness, control) => {
+  const persona = args['persona'];
   const maxSteps = args['maxSteps'];
   const sessionId = args['sessionId'];
   const expect = args['expect'];

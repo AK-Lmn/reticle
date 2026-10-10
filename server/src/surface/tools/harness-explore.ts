@@ -55,6 +55,7 @@ import {
 } from '@/features/harness/harness.js';
 import { reticleToolset } from './harness-toolset.js';
 import { DriveRefusedError, noteDriveLine } from '@/features/harness/drive-runs.js';
+import { personaCredentials } from '@/features/harness/platform/persona-credentials.js';
 import {
   checkExpect,
   checkGoals,
@@ -326,9 +327,14 @@ export function maxStepsFromEnv(env: Record<string, string | undefined>): number
  */
 export async function exploreApp(
   deps: ToolDeps,
-  env: Record<string, string | undefined>,
-  options: ExploreOptions = {},
+  given: Record<string, string | undefined>,
+  asked: ExploreOptions = {},
 ): Promise<ExploreResult> {
+  // Every drive starts here. The credentials a persona names fill its sign-in fields on this
+  // machine, and only the redacted text travels on: to the platform, into flows and synced runs.
+  const named = asked.focus === undefined ? undefined : personaCredentials(asked.focus);
+  const env = named === undefined ? given : { ...given, ...named.secrets };
+  const options = named === undefined ? asked : { ...asked, focus: named.persona };
   const refusal = await refusedForPlan(env, options);
   if (refusal !== undefined) throw new DriveRefusedError(refusal);
   // The flows a drive reads and diffs are the PROJECT's, which is where its saves land.
