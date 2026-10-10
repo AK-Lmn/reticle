@@ -5,6 +5,7 @@ import {
   forgetRecordedGaps,
   instrumentationOf,
   noteSourceSeen,
+  noteActedElement,
   recordGaps,
   recordedGaps,
 } from './recorded-gaps.js';
@@ -46,10 +47,28 @@ describe('a tab’s coverage', () => {
     sourceMapping: true,
   };
 
-  it('adds the source marker only while no verdict recorded a source gap', () => {
+  /**
+   * One unmapped control does not mean the app has no source mapping (core's own rule for the
+   * per-control gap); only the build turning the stamp off overrules the page's claim.
+   */
+  it('keeps the source marker a page claims until the stamp is turned off', () => {
     expect(announcedChannels(tab)).toContain(CoverageMarker.SOURCE);
     recordGaps('s1', [gap('e1')], 1);
+    expect(announcedChannels(tab)).toContain(CoverageMarker.SOURCE);
+    recordGaps('s1', [{ kind: 'source-mapping-off', missing: 'off', fix: 'turn it on' }], 2);
     expect(announcedChannels(tab)).not.toContain(CoverageMarker.SOURCE);
+  });
+
+  /** Test ids were never announced by anything, so coverage could never count them as seen. */
+  it('adds the test-id marker once an acted element carried one, unless a test-id gap is recorded', () => {
+    expect(announcedChannels(tab)).not.toContain(CoverageMarker.TESTID);
+    noteActedElement('s1', {
+      testid: 'auth-email',
+      source: { file: 'src/ui/input.tsx', line: 26 },
+    });
+    expect(announcedChannels(tab)).toContain(CoverageMarker.TESTID);
+    recordGaps('s1', [{ kind: 'missing-testid', missing: 'e9', fix: 'add a data-testid' }], 3);
+    expect(announcedChannels(tab)).not.toContain(CoverageMarker.TESTID);
   });
 
   /** A verdict mapped to src/App.jsx:24 and coverage still listed "File and line" as not seen. */

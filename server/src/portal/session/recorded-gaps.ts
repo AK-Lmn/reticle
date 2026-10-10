@@ -73,6 +73,39 @@ export function noteSourceSeen(sessionId: string, source: string | undefined): v
   if (source !== undefined) sourceSeen.add(sessionId);
 }
 
+/** Sessions where an acted element carried a `data-testid`. */
+const testidSeen = new Set<string>();
+
+/** An acted element carried a test id: the app uses them, whatever one control lacks. */
+export function noteTestidSeen(sessionId: string, testid: string | undefined): void {
+  if (testid !== undefined && 0 < testid.length) testidSeen.add(sessionId);
+}
+
+/** What an act result says about the element it reached: its test id and its source stamp. */
+export function noteActedElement(sessionId: string, result: unknown): void {
+  if ('object' !== typeof result || null === result) return;
+  const acted = result as Record<string, unknown>;
+  noteTestidSeen(sessionId, text(acted['testid']));
+  const source = acted['source'];
+  if ('object' === typeof source && null !== source) {
+    const file = text((source as Record<string, unknown>)['file']);
+    if (file !== undefined) sourceSeen.add(sessionId);
+  }
+}
+
+/**
+ * An act's result, passed through after noting what it says about the element it reached. Every act
+ * dispatches through one function, so coverage sees test ids and source stamps from the first
+ * control acted on rather than only from a verdict.
+ */
+export function notedAct<T extends { ok: boolean; result?: unknown }>(
+  sessionId: string,
+  done: T,
+): T {
+  if (done.ok) noteActedElement(sessionId, done.result);
+  return done;
+}
+
 /** What this session's verdicts recorded, newest first. */
 export function recordedGaps(sessionId: string): readonly RecordedGap[] {
   return bySession.get(sessionId) ?? [];
@@ -82,6 +115,7 @@ export function recordedGaps(sessionId: string): readonly RecordedGap[] {
 export function forgetRecordedGaps(sessionId: string): void {
   bySession.delete(sessionId);
   sourceSeen.delete(sessionId);
+  testidSeen.delete(sessionId);
 }
 
 /** What instrumentation coverage reads off a connected tab. */
@@ -94,24 +128,24 @@ export interface InstrumentedTab {
   inboxHistory?(): readonly InboxMessage[];
 }
 
-const SOURCE_GAPS: ReadonlySet<string> = new Set([
-  InstrumentationGapKind.NO_SOURCE_MAPPING,
-  InstrumentationGapKind.SOURCE_MAPPING_OFF,
-]);
-
 /**
- * The tab's HELLO channels, plus the `source` marker when a verdict mapped a control to its
- * file:line (seen anywhere is seen), or when its page said it carries source mapping and no verdict
- * recorded otherwise — the list the platform report sends and coverage reads. A build that turned
- * the stamp off has none, whatever was seen before it.
+ * The tab's HELLO channels, plus the `source` marker when an act or verdict mapped a control to
+ * its file:line (seen anywhere is seen) or its page said it carries source mapping, and the
+ * `testid` marker once an acted element carried one — the list the platform report sends and
+ * coverage reads. A build that turned the stamp off has no source marker, whatever was seen.
  */
 export function announcedChannels(tab: InstrumentedTab): string[] {
   const channels = [...(tab.channels ?? [])];
   const gaps = recordedGaps(tab.id);
+  // Only the build turning the stamp off overrules the page: one unmapped control does not mean
+  // the app has no source mapping (core's per-control rule).
   const off = gaps.some((gap) => InstrumentationGapKind.SOURCE_MAPPING_OFF === gap.kind);
-  const contradicted = gaps.some((gap) => SOURCE_GAPS.has(gap.kind));
-  const claimed = true === tab.sourceMapping && !contradicted;
-  if (!off && (sourceSeen.has(tab.id) || claimed)) channels.push(CoverageMarker.SOURCE);
+  if (!off && (sourceSeen.has(tab.id) || true === tab.sourceMapping))
+    channels.push(CoverageMarker.SOURCE);
+  // Nothing announces test ids, so they are seen on an acted element — and a control the agent
+  // could only reach without one keeps the capability missing.
+  const noTestid = gaps.some((gap) => InstrumentationGapKind.MISSING_TESTID === gap.kind);
+  if (!noTestid && testidSeen.has(tab.id)) channels.push(CoverageMarker.TESTID);
   return channels;
 }
 

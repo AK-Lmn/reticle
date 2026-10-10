@@ -98,7 +98,7 @@ import { resolveActTarget } from './act/act-target.js';
 import { tryRealInput, rewriteUploadArgs, HOVER_NEEDS_POINTER_MSG } from './real-input-attempt.js';
 import { gradeOfPredicate } from './assert/assert-grade.js';
 import { readAlreadyTrue } from './act/already-true.js';
-import { noteSourceSeen } from '@/portal/session/recorded-gaps.js';
+import { notedAct, noteSourceSeen } from '@/portal/session/recorded-gaps.js';
 
 /**
  * Narrow the wire's `action` to a real ActionType, or undefined.
@@ -160,9 +160,8 @@ export async function actCommand(
     };
   }
   const bridgeArgs: Record<string, unknown> = { ...actArgs, args: rewritten };
-  return timeoutMs !== undefined
-    ? session.command(ReticleCommand.ACT, bridgeArgs, timeoutMs)
-    : session.command(ReticleCommand.ACT, bridgeArgs);
+  const done = await session.command(ReticleCommand.ACT, bridgeArgs, timeoutMs);
+  return notedAct(session.id, done);
 }
 
 export const ACT_TOOLS: ToolDef[] = [
