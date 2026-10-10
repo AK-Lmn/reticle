@@ -9,6 +9,7 @@ import { Session, type SessionInfo } from './session.js';
 import { AttachmentHistory } from './presence/attachment-history.js';
 import type { NoSessionNextAction } from './no-session-next-action.js';
 import {
+  claimedSessionOf,
   openedBeforeDeparture,
   pickDocumentSuccessor,
   type SessionIdentity,
@@ -125,6 +126,9 @@ export interface ClosureRecord {
  * Bounded so a long-lived daemon cannot accumulate one record per tab forever.
  */
 const MAX_TOMBSTONES = 32;
+
+/** How a leased tab's id begins (`lease-tools.ts` mints them). */
+const LEASE_ID_PREFIX = 'lease-';
 
 export class SessionManager {
   readonly #sessions = new Map<string, Session>();
@@ -567,9 +571,20 @@ export class SessionManager {
         'reticle_sessions for the diagnosis rather than retrying this call.'
       );
     }
-    const named = live.map((s) => `'${s.id}' (${s.url})`).join(', ');
+    // A leased tab belongs to whoever holds the lease: naming it, and the page it is on, told one
+    // agent what every other agent on this daemon was doing. Only the app's own tabs are offered.
+    const own = live.filter((s) => claimedSessionOf(s.url) === undefined);
+    const ended = sessionId.startsWith(LEASE_ID_PREFIX)
+      ? ` Lease '${sessionId}' has ended (it expired or was released); lease a new tab to go on.`
+      : '';
+    if (0 === own.length)
+      return (
+        `no connected session with id '${sessionId}'.${ended} ` +
+        'Omit sessionId to let Reticle scope to your project, or lease a tab of your own.'
+      );
+    const named = own.map((s) => `'${s.id}' (${s.url})`).join(', ');
     return (
-      `no connected session with id '${sessionId}'. Connected right now: ${named}. ` +
+      `no connected session with id '${sessionId}'.${ended} Your app's tabs: ${named}. ` +
       'Retry with one of those, or omit sessionId entirely and let Reticle scope to your project.'
     );
   }
