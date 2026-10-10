@@ -497,3 +497,18 @@ describe("the driver's wrong guess about the route", () => {
     expect(checkTally([net]).failed).toBe(1);
   });
 });
+
+/** A run called flows missing on this computer "regressions in journeys that used to pass". */
+describe('a replayed flow that is not on this computer', () => {
+  it('is missing, not a failed journey', () => {
+    const missing = call(
+      'reticle_flow_replay',
+      { flowName: 'checkout' },
+      { error: 'no such flow on disk — run reticle_flow{action:"list"} to see saved flows' },
+      true,
+    );
+    const account = describeDrive([missing], []);
+    expect(account).toContain('MISSING: checkout');
+    expect(account).not.toContain('regressions');
+  });
+});

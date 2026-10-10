@@ -132,6 +132,13 @@ export type AnchorKind = (typeof AnchorKind)[keyof typeof AnchorKind];
  */
 export const DEGRADED_ANCHOR_ROLE = 'unresolved';
 
+/**
+ * How a missing flow is said, so a reader of a replay's error can tell "not on this computer" from
+ * "the journey failed": a whole-app run called missing flows "regressions in journeys that used to
+ * pass".
+ */
+export const NO_SUCH_FLOW = 'no such flow on disk';
+
 /** Structured failure codes for flow disk ops (returned, never thrown as free strings). */
 export const FlowErrorCode = {
   INVALID_NAME: 'flow_invalid_name', // path traversal / illegal chars

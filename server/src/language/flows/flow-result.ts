@@ -1,4 +1,4 @@
-import { FlowErrorCode } from '@reticlehq/core';
+import { FlowErrorCode, NO_SUCH_FLOW } from '@reticlehq/core';
 import { SAFE_SEGMENT_PATTERN, type ProjectId } from '@reticlehq/core';
 import { FlowParseNote } from './flow-expect-grammar.js';
 
@@ -41,7 +41,7 @@ export function flowErrorMessage(code: FlowErrorCode, detail?: string): string {
     case FlowErrorCode.INVALID_NAME:
       return 'invalid flow name — use a single safe segment (letters/digits/-/_), no path separators';
     case FlowErrorCode.NOT_FOUND:
-      return 'no such flow on disk — run reticle_flow{action:"list"} to see saved flows';
+      return `${NO_SUCH_FLOW} — run reticle_flow{action:"list"} to see saved flows`;
     case FlowErrorCode.PARSE_FAILED:
       return FlowParseNote.MALFORMED;
     case FlowErrorCode.NO_RECORDING:

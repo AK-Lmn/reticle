@@ -20,7 +20,7 @@
 
 import { appFindings } from './app-findings.js';
 import { MSG_ROUTE_GUESS_MISSED, claimsOnlyRoute } from './route-guess.js';
-import { asRecord, asString, ReticleTool, Verified } from '@reticlehq/core';
+import { asRecord, asString, NO_SUCH_FLOW, ReticleTool, Verified } from '@reticlehq/core';
 import type { ToolOutcome } from './harness.js';
 
 /** One driven action, reduced to what a reader needs: what was done, and what it proved. */
@@ -172,6 +172,8 @@ export const ReplayOutcome = {
   ERROR: 'error',
   /** Stopped at a step the flow marks destructive: not run, which is not a regression. */
   GUARDED: 'guarded',
+  /** Not saved on this computer: nothing ran, which is not a regression either. */
+  MISSING: 'missing',
 } as const;
 
 export function replayedFlows(
@@ -188,9 +190,13 @@ export function replayedFlows(
     out.push({
       name,
       status:
-        ReplayOutcome.ERROR === status && message.includes(DESTRUCTIVE_REFUSAL)
-          ? ReplayOutcome.GUARDED
-          : status,
+        ReplayOutcome.ERROR !== status
+          ? status
+          : message.includes(DESTRUCTIVE_REFUSAL)
+            ? ReplayOutcome.GUARDED
+            : message.includes(NO_SUCH_FLOW)
+              ? ReplayOutcome.MISSING
+              : status,
     });
   }
   return out;
@@ -384,11 +390,17 @@ export function describeDrive(
           const failed = replays.filter((r) => ReplayOutcome.ERROR === r.status);
           const drifted = replays.filter((r) => ReplayOutcome.DRIFT === r.status);
           const guarded = replays.filter((r) => ReplayOutcome.GUARDED === r.status);
+          const missing = replays.filter((r) => ReplayOutcome.MISSING === r.status);
           const lines = [
             `Replayed ${String(replays.length)} recorded journey(s) with NO model in the loop: ` +
               `${String(held.length)} still hold, ${String(failed.length)} failed, ${String(drifted.length)} drifted` +
-              `${0 === guarded.length ? '' : `, ${String(guarded.length)} not run`}.`,
+              `${0 === guarded.length ? '' : `, ${String(guarded.length)} not run`}` +
+              `${0 === missing.length ? '' : `, ${String(missing.length)} not on this computer`}.`,
           ];
+          if (0 < missing.length)
+            lines.push(
+              `  MISSING: ${missing.map((r) => r.name).join(', ')} — not saved on this computer, so nothing ran. Not a regression: pull or record them here first.`,
+            );
           if (0 < failed.length)
             lines.push(
               `  FAILED: ${failed.map((r) => r.name).join(', ')} — regressions in journeys that used to pass.`,
