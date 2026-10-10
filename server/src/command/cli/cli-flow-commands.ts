@@ -6,7 +6,8 @@
  * verification state, and none of them touch daemon lifecycle, which is what the rest of cli.ts does.
  */
 
-import { GateExit } from './answers/gate-exit.js';
+import { GateExit, MSG_GATE_NO_FLOWS, gateExitWith } from './answers/gate-exit.js';
+import { knownRegression } from './known-regression.js';
 import { gateHookMessage, GATE_SKIP_ENV } from './answers/gate-hook-message.js';
 import { readProjectId } from './ports/resolve/cli-port.js';
 import { changedFilesSince, type ChangedFiles } from '@/language/flows/change/git-changed.js';
@@ -212,11 +213,20 @@ export async function handleGate(
     // problem to fail. A Stop hook wants to block a real regression and NOT block a project that
     // has simply not recorded a flow yet — which is every project on its first day, and measured
     // before this change as an exit 1 that would have blocked every stop. See GateExit.
-    if (!pass) {
-      const code =
-        result.pass && flowCoverage.outcome !== undefined
-          ? GateExit.NOTHING_TO_CHECK
-          : GateExit.FAIL;
+    // A regression the platform already knows fails the build here too, with `reticle runs
+    // regression`'s code, so the gate is the one command CI needs. Best-effort: unlinked or offline
+    // changes nothing.
+    const regressed = await knownRegression(reticleRoot);
+    if (regressed !== undefined && 0 < regressed.length)
+      log('reticle_gate_regression', { broken: regressed });
+    const local = pass
+      ? GateExit.PASS
+      : result.pass && flowCoverage.outcome !== undefined
+        ? GateExit.NOTHING_TO_CHECK
+        : GateExit.FAIL;
+    const code = gateExitWith(local, regressed?.length);
+    if (GateExit.NOTHING_TO_CHECK === code && !hook) process.stderr.write(`${MSG_GATE_NO_FLOWS}\n`);
+    if (GateExit.PASS !== code) {
       process.exitCode = code;
       if (hook) {
         // An honest escape hatch, because the alternative to one is not compliance — it is somebody
@@ -239,6 +249,7 @@ export async function handleGate(
             (r) => `${r.level} ${String(r.was)}% -> ${String(r.now)}%`,
           ),
           unexecuted: result.unexecuted,
+          regressed: regressed?.length ?? 0,
         });
         if (message !== undefined) process.stderr.write(`${message}\n`);
       }

@@ -18,4 +18,21 @@ export const GateExit = {
   FAIL: 1,
   /** The gate ran and had nothing to judge — no flows recorded. Non-zero, but not a regression. */
   NOTHING_TO_CHECK: 2,
+  /** The platform knows a flow that passed before and is broken now: `reticle runs regression`'s code. */
+  REGRESSION: 3,
 } as const;
+
+/**
+ * The gate's code once the platform has been asked about regressions: a known one fails the build
+ * with `reticle runs regression`'s code, whatever the local answer was, so the gate is the one
+ * command CI needs. `undefined` (not linked, or the platform did not answer) changes nothing.
+ */
+export function gateExitWith(local: number, regressed: number | undefined): number {
+  return regressed !== undefined && 0 < regressed ? GateExit.REGRESSION : local;
+}
+
+/** Said when the gate had no saved flows to judge, so exit 2 does not read as the change failing. */
+export const MSG_GATE_NO_FLOWS =
+  'Reticle gate: no saved flows here, so there was nothing to check; this is not a failure of this ' +
+  'change. Record one by driving the app with reticle_act_and_wait, or run ' +
+  '`reticle verify <url> --explore`, then run the gate again.';

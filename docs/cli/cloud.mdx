@@ -92,7 +92,7 @@ The linked project's recent run artifacts. The key scopes the query server-side.
 
 ### `reticle runs regression`
 
-The CI gate: which flows broke relative to before. **Exits `3`** when any flow regressed, which is the whole point of it being a separate command.
+Which flows broke relative to before. **Exits `3`** when any flow regressed. [`reticle gate`](/cli/gate) checks the same thing in a linked repo and exits `3` too, so CI needs only the gate.
 
 ### `reticle runs share`
 

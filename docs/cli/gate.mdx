@@ -54,6 +54,8 @@ One `reticle_gate` line. Real capture from this repository, with the flow lists 
 | --- | --- |
 | `0` | Every affected, non-flaky flow has a passing artifact, nothing was weakened or deleted, and coverage held |
 | `1` | Something is uncovered, downgraded, deleted, unflowed, unexecuted, or coverage fell. Also `1` on any internal fault: the gate fails closed |
+| `2` | No saved flows, so nothing was checked. This is not a failure of the change: the gate says how to record one |
+| `3` | The linked project's dashboard knows a flow that passed before and is broken now, the same code `reticle runs regression` exits with. Checked only when the repo is linked; offline, it changes nothing |
 
 Measured on this repository, `npx @reticlehq/server gate --since HEAD~1` exited `1` with the output above: 0 of 47 flows covered, 39 uncovered and 8 quarantined.
 

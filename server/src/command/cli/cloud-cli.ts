@@ -44,6 +44,8 @@ import {
   RETICLE_DIR,
 } from './cloud-kit.js';
 import { syncRequest } from '@/memory/cloud/cloud-sync.js';
+import { GateExit, gateExitWith } from './answers/gate-exit.js';
+import { brokenOf } from './known-regression.js';
 import { describeUnsynced } from '@/memory/cloud/unsynced-roots.js';
 import { machineUnsyncedRoots } from '@/memory/project/sync-status.js';
 import { describeSync, runSyncCycle } from '@/memory/cloud/sync-cycle.js';
@@ -886,8 +888,7 @@ const cmdRegression = async (): Promise<number> => {
   const { url, apiKey } = await repoCloud();
   const report = await api('GET', `${url}/v1/project/regression`, apiKey);
   emit(report);
-  const parsed = z.object({ broken: z.array(z.unknown()) }).safeParse(report);
-  return parsed.success && parsed.data.broken.length > 0 ? 3 : 0;
+  return gateExitWith(GateExit.PASS, brokenOf(report)?.length);
 };
 
 /** `reticle share <runId>` — mint a public proof link for one run. */
