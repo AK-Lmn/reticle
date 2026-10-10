@@ -42,6 +42,7 @@ import {
   type HarnessPlan,
 } from './harness-plan.js';
 import {
+  fetchScript,
   journeyResults,
   personasIn,
   proposeScript,
@@ -49,7 +50,10 @@ import {
   type JourneyResult,
 } from '@/features/harness/platform/script.js';
 import { checkExpect, checkGoals, goalsIn, type GoalCheck } from '@/features/harness/goals.js';
-import { serverOptionsFromEnv } from '@/features/harness/platform/server-driver.js';
+import {
+  serverOptionsFromEnv,
+  type PlatformCredential,
+} from '@/features/harness/platform/server-driver.js';
 import {
   MSG_HARNESS_DISABLED,
   bankOpenRecording,
@@ -70,6 +74,14 @@ import {
   type ExploreOptions,
   type ExploreResult,
 } from './harness-explore.js';
+
+/** A saved plan this run was asked for and could not read: said, never swapped for another drive. */
+export const msgSavedPlanUnreadable = (planId: string): string =>
+  `The saved plan ${planId} could not be read from the Reticle platform, or it no longer runs as written. Open it on the dashboard, fix it, and run it again.`;
+
+/** The platform could not plan the run: the drive that follows is the journey alone, unplanned. */
+export const msgNoPlan = (why: string): string =>
+  `No plan this time — ${why.replace(/\.$/, '')}. Driving the journey on its own instead.`;
 
 /** A request older than this is about some earlier task, not the one being driven. */
 const REQUEST_FRESH_MS = 6 * 60 * 60 * 1000;
@@ -108,7 +120,21 @@ export async function exploreScript(
   // The platform plans: personas, order, branches and the product rules each journey proves.
   // A platform that cannot plan leaves the caller to drive the journey through it unplanned.
   const platform = serverOptionsFromEnv(env);
+  // A saved plan is the platform's: without it there is nothing to run, and driving something else
+  // in its place would answer a question nobody asked.
+  if (platform === undefined && options.planId !== undefined)
+    throw new Error(msgSavedPlanUnreadable(options.planId));
   if (platform === undefined) return undefined;
+  if (options.planId !== undefined) {
+    const saved = await fetchScript(platform, options.planId);
+    if (saved === undefined) throw new Error(msgSavedPlanUnreadable(options.planId));
+    return runPlan(deps, env, options, before, {
+      platform,
+      plan,
+      script: saved,
+      planId: options.planId,
+    });
+  }
   // What the screen offers, for a named journey too. The platform splits a broad request ("test my
   // app, make a plan") into journeys through these controls and leaves a narrow one whole; without
   // them, a chat-requested drive of a desktop app planned one step that restated the request.
@@ -127,8 +153,36 @@ export async function exploreScript(
     rules: known,
     personas,
   });
+  if (proposed !== undefined && 'refused' in proposed) {
+    // Said where the run is watched: the drive goes on without a plan, and that is not what was asked.
+    narrator(deps, options)(msgNoPlan(proposed.refused), true);
+    return undefined;
+  }
   if (proposed === undefined || 0 < checkScript(proposed.script).length) return undefined;
-  const { script, planId } = proposed;
+  return runPlan(deps, env, options, before, {
+    platform,
+    plan,
+    script: proposed.script,
+    ...(proposed.planId === undefined ? {} : { planId: proposed.planId }),
+  });
+}
+
+/** Run a plan the platform wrote (just now, or saved and maybe edited since), and report how it went. */
+async function runPlan(
+  deps: ToolDeps,
+  env: Record<string, string | undefined>,
+  options: ExploreOptions,
+  before: ReadonlySet<string>,
+  planned: {
+    platform: PlatformCredential;
+    plan: HarnessPlan;
+    script: DriveScript;
+    planId?: string;
+  },
+): Promise<ExploreResult> {
+  const { platform, plan, script, planId } = planned;
+  const reads = withProjectFlows(deps, options.sessionId);
+  const focus = options.focus;
   // Saved the moment it exists, so a drive that breaks still leaves its plan behind.
   const planFile = await savePlan(deps, options.sessionId, { planId, script });
 
@@ -254,7 +308,6 @@ export async function exploreScript(
     { planId, script, results, ...appControlsOf(run.toolCalls, crawled) },
     planFile,
   );
-  if (planId !== undefined) await reportPlanResults(platform, planId, results);
   for (const line of run.lines) narrate(line);
   const cutOff = run.drives.find((d) => StopReason.BROKEN === d.stopReason);
   narrate(
@@ -299,6 +352,7 @@ export async function exploreScript(
     const runId = harnessRunId(id);
     return runId === undefined ? [] : [runId];
   });
+  if (planId !== undefined) await reportPlanResults(platform, planId, results, runIds);
   const unverifiedFlows = await flowsThatCheckNothing(reads, [
     ...reconciled.savedFlows,
     ...reconciled.rewroteFlows,
@@ -317,6 +371,7 @@ export async function exploreScript(
       options.expect,
     ),
     ...(0 === runIds.length ? {} : { runIds }),
+    ...(planId === undefined ? {} : { planId }),
     journeys: results,
     planLines: [
       `Plan · ${String(script.journeys.length)} journeys in ${String(script.lanes.length)} lane(s)`,

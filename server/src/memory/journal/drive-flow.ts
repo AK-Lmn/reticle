@@ -217,6 +217,25 @@ function typesASecret(step: TapeStep): boolean {
   return 'string' === typeof field && defaultIsSensitiveKey(field);
 }
 
+/**
+ * The tape without the attempts an agent made again. An action that declared nothing, followed at
+ * once by the same action on the same control that did, is a retry: saved, the flow clicked sign-in
+ * twice, the second click found no form, and every replay of it failed. A step repeated with the
+ * same declaration both times (a double submit on purpose) is two steps, and stays two.
+ */
+function withoutRetries(steps: readonly TapeStep[]): TapeStep[] {
+  return steps.filter((step, i) => {
+    const next = steps[i + 1];
+    if (next === undefined || step.expect !== undefined || next.expect === undefined) return true;
+    // Tried again where it was tried: a page later it is a step of the journey, not a retry.
+    if (step.route !== next.route || step.page !== next.page || step.mocked !== next.mocked)
+      return true;
+    const { expect: _declared, ...again } = next.args;
+    const { expect: _none, ...first } = step.args;
+    return step.tool !== next.tool || JSON.stringify(first) !== JSON.stringify(again);
+  });
+}
+
 /** A flow per journey, so two journeys in one session are two regression tests rather than one. */
 export function driveFlowsFrom(
   tape: { steps: readonly TapeStep[]; startPath?: string } | undefined,
@@ -225,7 +244,7 @@ export function driveFlowsFrom(
   const programs: DriveProgram[] = [];
   let unproven = 0;
   let mocked = 0;
-  for (const segment of segmentsByRoute(tape.steps)) {
+  for (const segment of segmentsByRoute(withoutRetries(tape.steps))) {
     if (!carriesAnAssertion(segment.steps)) {
       unproven += segment.steps.length;
       continue;

@@ -30,7 +30,11 @@ import { CUSTOM_DRIVER_NAME, SERVER_DRIVER } from '@/features/harness/drivers.js
 import { buildDomainModel } from '@/judgement/domain/domain-model.js';
 import { readContract } from '@/memory/project/dir/reticle-dir.js';
 import { sessionRoot, sessionTarget } from '@/memory/project/session-root.js';
-import { dashboardRunUrl, readDashboardUrl } from '@/memory/project/sync-status.js';
+import {
+  dashboardPlanUrl,
+  dashboardRunUrl,
+  readDashboardUrl,
+} from '@/memory/project/sync-status.js';
 import { buildHarnessPlan, planAsText, withoutReplays, type HarnessPlan } from './harness-plan.js';
 import { allSessionIntents } from '@/memory/intent/open-intents.js';
 import { fetchPlatformConfig, type ConfigFetch } from '@/features/harness/platform-config.js';
@@ -98,6 +102,8 @@ export interface ExploreOptions {
   configFetch?: ConfigFetch;
   /** The drive's harness id, minted by the caller so its run id is known before the drive starts. */
   harnessId?: string;
+  /** A plan the platform saved (`hp_…`): run it as it stands, instead of asking for a new one. */
+  planId?: string;
   /** Asked between turns: whoever started the drive asked it to stop. */
   stopped?: () => boolean;
   /** Asked between turns: what whoever started the drive said to it since. */
@@ -144,6 +150,10 @@ export interface ExploreResult {
   runUrl?: string;
   /** How each journey of a platform plan ended, worst lane first. Absent for an unplanned drive. */
   journeys?: readonly JourneyResult[];
+  /** The platform plan this run drove, which the dashboard keeps, edits and runs again. */
+  planId?: string;
+  /** That plan's page on the dashboard. */
+  planUrl?: string;
 }
 
 /**
@@ -273,9 +283,19 @@ export async function exploreApp(
   const before = new Set(await reads.flows.list());
   // Without a named journey the drive is always planned; with one, it is planned by the platform
   // when there is one, and driven here as before when there is not.
-  if (options.focus === undefined || serverOptionsFromEnv(env) !== undefined) {
+  if (
+    options.focus === undefined ||
+    options.planId !== undefined ||
+    serverOptionsFromEnv(env) !== undefined
+  ) {
     const scripted = await exploreScript(deps, env, options, before);
-    if (scripted !== undefined) return scripted;
+    // Where the person opens it: the run, and the plan the dashboard keeps and runs again.
+    if (scripted !== undefined)
+      return {
+        ...scripted,
+        ...runUrlFor(deps, options.sessionId, scripted.runIds?.[0]),
+        ...planUrlFor(deps, options.sessionId, scripted.planId),
+      };
   }
 
   const maxSteps = options.maxSteps ?? maxStepsFromEnv(env);
@@ -397,7 +417,21 @@ export function narrator(
   };
 }
 
-/** What this project's memory says must hold, in its own words. Nothing recorded is none. */
+/** The plan's page on the dashboard, where it is edited and run again; nothing when unlinked. */
+function planUrlFor(
+  deps: ToolDeps,
+  sessionId: string | undefined,
+  planId: string | undefined,
+): { planUrl?: string } {
+  if (planId === undefined) return {};
+  try {
+    const dashboard = readDashboardUrl(sessionRoot(deps, sessionId));
+    return dashboard === undefined ? {} : { planUrl: dashboardPlanUrl(dashboard, planId) };
+  } catch {
+    return {};
+  }
+}
+
 /** The run's page on the dashboard, when the tab's project is linked; nothing when it is not. */
 function runUrlFor(
   deps: ToolDeps,

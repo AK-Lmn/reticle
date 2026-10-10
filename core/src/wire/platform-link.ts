@@ -75,6 +75,7 @@ export const SpecIgnoredReason = {
 export type SpecIgnoredReason = (typeof SpecIgnoredReason)[keyof typeof SpecIgnoredReason];
 
 const PERSONA_MAX = 2_000;
+const PLAN_ID_MAX = 128;
 const STEPS_MAX = 500;
 
 /** Each field of a spec, validated on its own so one bad field never costs the others. */
@@ -89,6 +90,7 @@ const SPEC_FIELDS = {
   persona: z.string().min(1).max(PERSONA_MAX),
   maxSteps: z.number().int().min(1).max(STEPS_MAX),
   record: z.boolean(),
+  plan: z.string().min(1).max(PLAN_ID_MAX),
 } as const;
 
 export interface DriveSpec {
@@ -101,6 +103,8 @@ export interface DriveSpec {
   maxSteps?: number;
   /** Whether pictures of the page may leave the machine. */
   record?: boolean;
+  /** A plan the platform saved: run it as it stands instead of asking for a new one. */
+  plan?: string;
 }
 
 export interface SpecIgnored {

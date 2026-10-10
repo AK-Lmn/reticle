@@ -92,4 +92,32 @@ describe('drive script', () => {
     expect(problems).toContain('depends on unknown "ghost"');
     expect(problems).toContain('branches at "nowhere"');
   });
+
+  it('a condition names a journey that ran before it, and a known one', () => {
+    const lane = { id: 'A', journeys: ['signin', 'error-shown'] };
+    const signin = { id: 'signin', title: 'Sign in', steps: [{ kind: 'act', goal: 'sign in' }] };
+    const errorShown = {
+      id: 'error-shown',
+      title: 'The error says why',
+      when: { journey: 'signin', is: 'failed' },
+      steps: [{ kind: 'act', goal: 'read the error' }],
+    };
+    const ok = DriveScriptSchema.parse({
+      version: 1,
+      source: 'platform',
+      journeys: [signin, errorShown],
+      lanes: [lane],
+    });
+    expect(checkScript(ok)).toEqual([]);
+    const backwards = DriveScriptSchema.parse({
+      ...ok,
+      lanes: [{ id: 'A', journeys: ['error-shown', 'signin'] }],
+    });
+    expect(checkScript(backwards).join('\n')).toContain('needs "signin", which is neither earlier');
+    const ghost = DriveScriptSchema.parse({
+      ...ok,
+      journeys: [signin, { ...errorShown, when: { journey: 'ghost', is: 'passed' } }],
+    });
+    expect(checkScript(ghost).join('\n')).toContain('runs when unknown "ghost" ends');
+  });
 });

@@ -141,7 +141,11 @@ export interface RemoteDriveDeps {
   /** How a session ask waits before it is sent again. */
   sleep?: (ms: number) => Promise<void>;
   /** Drive the app toward `goal`, in `sessionId`. A throw is reported as a failed drive, in its own words. */
-  drive: (goal: string, sessionId: string | undefined) => Promise<RemoteDriveOutcome>;
+  drive: (
+    goal: string,
+    sessionId: string | undefined,
+    spec?: DriveSpec,
+  ) => Promise<RemoteDriveOutcome>;
   /**
    * What the driven tab shows now, as a JPEG, or undefined when it cannot be captured (a tab this
    * daemon did not launch). Absent: the drive runs with no picture, and the chat shows its steps.
@@ -291,7 +295,7 @@ export function startRemoteDrives(deps: RemoteDriveDeps): RemoteDrives {
       let outcome: RemoteDriveOutcome;
       let framesSent = 0;
       try {
-        outcome = await deps.drive(drive.goal, sessionId);
+        outcome = await deps.drive(drive.goal, sessionId, parsed.spec);
       } catch (error) {
         outcome = { ok: false, summary: error instanceof Error ? error.message : String(error) };
       } finally {

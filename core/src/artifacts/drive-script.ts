@@ -27,6 +27,10 @@ export const ScriptStepKind = {
 
 export const ScriptSource = { LOCAL: 'local', PLATFORM: 'platform' } as const;
 
+/** How the journey a condition names must have ended for the conditional one to run. */
+export const JourneyOutcome = { PASSED: 'passed', FAILED: 'failed' } as const;
+export type JourneyOutcome = (typeof JourneyOutcome)[keyof typeof JourneyOutcome];
+
 const ReplayStep = z.object({
   kind: z.literal(ScriptStepKind.REPLAY),
   flow: z.string().min(1),
@@ -86,6 +90,16 @@ export const JourneySchema = z.object({
   title: z.string().min(1),
   persona: z.string().optional(),
   dependsOn: z.array(z.string()).default([]),
+  /**
+   * Run only when an earlier journey ended this way, else it is not taken: "if sign-in failed, the
+   * error says why". Unlike `dependsOn` it is not blocked by a failure; a failure can be the point.
+   */
+  when: z
+    .object({
+      journey: z.string().min(1),
+      is: z.enum([JourneyOutcome.PASSED, JourneyOutcome.FAILED]),
+    })
+    .optional(),
   steps: z.array(ScriptStepSchema).min(1),
 });
 
@@ -131,6 +145,8 @@ export function checkScript(script: DriveScript): string[] {
     for (const dep of journey.dependsOn) {
       if (!byId.has(dep)) problems.push(`journey "${journey.id}" depends on unknown "${dep}"`);
     }
+    if (journey.when !== undefined && !byId.has(journey.when.journey))
+      problems.push(`journey "${journey.id}" runs when unknown "${journey.when.journey}" ends`);
     problems.push(...checkBranches(journey));
   }
   script.lanes.forEach((lane, laneIndex) => {
@@ -140,7 +156,8 @@ export function checkScript(script: DriveScript): string[] {
         problems.push(`lane "${lane.id}" names unknown journey "${id}"`);
         return;
       }
-      for (const dep of journey.dependsOn) {
+      const after = journey.when === undefined ? [] : [journey.when.journey];
+      for (const dep of [...journey.dependsOn, ...after]) {
         if (!byId.has(dep)) continue;
         const sameLane = lane.journeys.slice(0, position).includes(dep);
         const earlierLane = script.lanes

@@ -119,20 +119,28 @@ export function readDashboardUrl(reticleRoot: string): string | undefined {
 
 /** The dashboard's page for one run: the console's `/runs/:runId` route, at the dashboard's origin. */
 export const DASHBOARD_RUN_PATH = '/runs/';
+export const DASHBOARD_PLAN_PATH = '/plans/';
 
 export function dashboardRunUrl(dashboardUrl: string, runId: string): string {
-  let origin = dashboardUrl.replace(/\/+$/, '');
+  return `${dashboardOrigin(dashboardUrl)}${DASHBOARD_RUN_PATH}${encodeURIComponent(runId)}`;
+}
+
+function dashboardOrigin(dashboardUrl: string): string {
   try {
-    origin = new URL(dashboardUrl).origin;
+    return new URL(dashboardUrl).origin;
   } catch {
-    // Not a url: use it as given.
+    return dashboardUrl.replace(/\/+$/, ''); // not a url: use it as given
   }
-  return `${origin}${DASHBOARD_RUN_PATH}${encodeURIComponent(runId)}`;
 }
 
 /** The line a command prints once its run reached the platform. */
 export function seeRunLine(dashboardUrl: string, runId: string): string {
   return `See it in your dashboard: ${dashboardRunUrl(dashboardUrl, runId)}`;
+}
+
+/** A saved Harness plan's page on the dashboard, beside its runs. */
+export function dashboardPlanUrl(dashboardUrl: string, planId: string): string {
+  return `${dashboardOrigin(dashboardUrl)}${DASHBOARD_PLAN_PATH}${encodeURIComponent(planId)}`;
 }
 
 /** This project's summary, read from its `.reticle`. Never throws: an unreadable record is empty. */

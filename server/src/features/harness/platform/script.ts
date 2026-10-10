@@ -79,7 +79,7 @@ export async function proposeScript(
   platform: PlatformCredential,
   ask: ScriptAsk,
   doFetch: FetchLike = (url, init) => fetch(url, init),
-): Promise<{ script: DriveScript; planId?: string } | undefined> {
+): Promise<{ script: DriveScript; planId?: string } | { refused: string } | undefined> {
   try {
     const res = await doFetch(`${platform.url}${SCRIPTS_PATH}`, {
       method: 'POST',
@@ -108,7 +108,8 @@ export async function proposeScript(
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return undefined;
+    // The platform's own reason, so a drive that goes on without a plan can say why.
+    if (!res.ok) return { refused: await refusalOf(res) };
     const body = (await res.json()) as { script?: unknown; planId?: unknown };
     const parsed = DriveScriptSchema.safeParse(body.script);
     if (!parsed.success || 0 < checkScript(parsed.data).length) return undefined;
@@ -116,6 +117,39 @@ export async function proposeScript(
       script: parsed.data,
       ...('string' === typeof body.planId ? { planId: body.planId } : {}),
     };
+  } catch {
+    return undefined;
+  }
+}
+
+async function refusalOf(res: Response): Promise<string> {
+  try {
+    const message = ((await res.json()) as { error?: { message?: unknown } }).error?.message;
+    if ('string' === typeof message && 0 < message.length) return message;
+  } catch {
+    // not JSON: the status says enough
+  }
+  return `the platform answered ${String(res.status)}`;
+}
+
+/**
+ * A plan the platform saved, as it stands now: somebody may have edited it on the dashboard since it
+ * last ran. Checked like a proposed one; `undefined` when it cannot be read or cannot run.
+ */
+export async function fetchScript(
+  platform: PlatformCredential,
+  planId: string,
+  doFetch: FetchLike = (url, init) => fetch(url, init),
+): Promise<DriveScript | undefined> {
+  try {
+    const res = await doFetch(`${platform.url}${SCRIPTS_PATH}/${encodeURIComponent(planId)}`, {
+      method: 'GET',
+      headers: platformHeaders(platform),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return undefined;
+    const parsed = DriveScriptSchema.safeParse(((await res.json()) as { script?: unknown }).script);
+    return parsed.success && 0 === checkScript(parsed.data).length ? parsed.data : undefined;
   } catch {
     return undefined;
   }
@@ -155,6 +189,7 @@ export async function reportPlanResults(
   platform: PlatformCredential,
   planId: string,
   results: readonly JourneyResult[],
+  runIds: readonly string[] = [],
   doFetch: FetchLike = (url, init) => fetch(url, init),
 ): Promise<boolean> {
   try {
@@ -163,7 +198,8 @@ export async function reportPlanResults(
       {
         method: 'POST',
         headers: platformHeaders(platform),
-        body: JSON.stringify({ results }),
+        // The runs it made, so the plan's history opens each one.
+        body: JSON.stringify({ results, ...(0 === runIds.length ? {} : { runIds }) }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       },
     );

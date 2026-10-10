@@ -97,7 +97,7 @@ import {
 import { Annotator, type AnnotatorChrome } from '@/review/annotator.js';
 import { shouldAutoOpenChat } from './presenter-shell.js';
 import { installHudTelemetry } from './hud-telemetry.js';
-import { PLAN_HTML, PlanBoard, parsePlanView } from './presenter-plan.js';
+import { PlanBoard, parsePlanView } from './presenter-plan.js';
 import {
   claimLog,
   readRememberedLog,
@@ -335,7 +335,7 @@ export class Presenter {
       <div data-reticle-glow></div>
       <div data-reticle-cursor></div>
       <div data-reticle-ring></div>
-      ${HudShell.dockHtml(actStrip, PLAN_HTML, DATA_RETICLE_LOG, CONTROLS_MARKS_HTML, CONTROLS_FOOT_HTML)}`;
+      ${HudShell.dockHtml(actStrip, '', DATA_RETICLE_LOG, CONTROLS_MARKS_HTML, CONTROLS_FOOT_HTML)}`;
     document.body.appendChild(root);
     this.#root = root;
     this.#glow = root.querySelector<HTMLElement>('[data-reticle-glow]') ?? undefined;

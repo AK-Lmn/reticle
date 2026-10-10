@@ -83,15 +83,19 @@ export async function runScript(
     }
   };
 
-  // A journey that sits in several lanes is answered by the FIRST lane holding it; barriers wait on that.
-  const outcome = new Map<string, { promise: Promise<boolean>; settle: (ok: boolean) => void }>();
+  // A journey that sits in several lanes is answered by the FIRST lane holding it; barriers wait on
+  // that. It is answered with how it ended, because a condition can be waiting for a failure.
+  const outcome = new Map<
+    string,
+    { promise: Promise<ScriptStatus>; settle: (status: ScriptStatus) => void }
+  >();
   const firstLane = new Map<string, string>();
   for (const lane of script.lanes) {
     for (const id of lane.journeys) {
       if (firstLane.has(id)) continue;
       firstLane.set(id, lane.id);
-      let settle: (ok: boolean) => void = () => undefined;
-      const promise = new Promise<boolean>((resolve) => (settle = resolve));
+      let settle: (status: ScriptStatus) => void = () => undefined;
+      const promise = new Promise<ScriptStatus>((resolve) => (settle = resolve));
       outcome.set(id, { promise, settle });
     }
   }
@@ -104,8 +108,8 @@ export async function runScript(
 
   const runLane = async (lane: DriveScript['lanes'][number], laneIndex: number): Promise<void> => {
     const cards = view.lanes[laneIndex]?.journeys ?? [];
-    const settleOwned = (id: string, ok: boolean): void => {
-      if (firstLane.get(id) === lane.id) outcome.get(id)?.settle(ok);
+    const settleOwned = (id: string, status: ScriptStatus): void => {
+      if (firstLane.get(id) === lane.id) outcome.get(id)?.settle(status);
     };
     let lease: { sessionId?: string; release(): Promise<void> } | undefined;
     let blocked = false;
@@ -114,15 +118,28 @@ export async function runScript(
         const card = cards[position];
         const journey = journeyById.get(id);
         if (card === undefined || journey === undefined) continue;
-        const waits = await Promise.all(
-          barriersOf(script, lane.id, id).map(
-            (dep) => outcome.get(dep)?.promise ?? Promise.resolve(false),
-          ),
-        );
-        if (blocked || stopped || ports.stopped() || waits.includes(false)) {
-          blocked = true;
+        const ended = (dep: string): Promise<ScriptStatus> =>
+          outcome.get(dep)?.promise ?? Promise.resolve(ScriptStatus.BLOCKED);
+        const waits = await Promise.all(barriersOf(script, lane.id, id).map(ended));
+        // A conditional journey is decided by how the journey it names ended, not by the lane: a
+        // failure earlier in the lane is often exactly what it is there to look at.
+        const when = journey.when;
+        const lanePast = when === undefined && blocked;
+        if (
+          lanePast ||
+          stopped ||
+          ports.stopped() ||
+          waits.some((s) => ScriptStatus.PASSED !== s)
+        ) {
+          if (when === undefined) blocked = true;
           card.status = ScriptStatus.BLOCKED;
-          settleOwned(id, false);
+          settleOwned(id, ScriptStatus.BLOCKED);
+          tell();
+          continue;
+        }
+        if (when !== undefined && (await ended(when.journey)) !== when.is) {
+          card.status = ScriptStatus.NOT_TAKEN;
+          settleOwned(id, ScriptStatus.NOT_TAKEN);
           tell();
           continue;
         }
@@ -147,8 +164,9 @@ export async function runScript(
             : ScriptStatus.BLOCKED;
         drives.push(...own);
         if (!ok && own.some((d) => false === d.goalMet)) goalMissed.add(card);
-        blocked = !ok;
-        settleOwned(id, ok);
+        // A conditional journey that failed leaves the lane as it found it: it was a side road.
+        if (when === undefined) blocked = !ok;
+        settleOwned(id, card.status);
         tell();
       }
     } catch (error) {
@@ -160,7 +178,7 @@ export async function runScript(
           card.status = ScriptStatus.BLOCKED;
         }
       }
-      for (const id of lane.journeys) settleOwned(id, false);
+      for (const id of lane.journeys) settleOwned(id, ScriptStatus.BLOCKED);
       tell();
     } finally {
       await lease?.release().catch(() => undefined);

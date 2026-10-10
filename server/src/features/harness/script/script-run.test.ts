@@ -391,3 +391,53 @@ describe('an open goal that quotes where it ends', () => {
     expect(run.view.lanes[0]?.journeys[0]?.status).toBe(ScriptStatus.FAILED);
   });
 });
+
+describe('a journey that runs on how another ended', () => {
+  const branching = script({
+    version: 1,
+    source: 'platform',
+    journeys: [
+      { id: 'signin', title: 'Sign in', steps: [replay('signin')] },
+      {
+        id: 'error-shown',
+        title: 'The error says why',
+        when: { journey: 'signin', is: 'failed' },
+        steps: [replay('error-shown')],
+      },
+      {
+        id: 'dashboard',
+        title: 'Dashboard',
+        when: { journey: 'signin', is: 'passed' },
+        steps: [replay('dashboard')],
+      },
+      { id: 'audit', title: 'Audit', steps: [replay('audit')] },
+    ],
+    lanes: [
+      { id: 'A', journeys: ['signin', 'error-shown', 'dashboard'] },
+      { id: 'B', journeys: ['audit'] },
+    ],
+  });
+  const statuses = (run: Awaited<ReturnType<typeof runScript>>): Record<string, string> =>
+    Object.fromEntries(run.view.lanes.flatMap((l) => l.journeys.map((j) => [j.id, j.status])));
+
+  it('takes the passed road when it passed, and leaves the other not taken', async () => {
+    const fake = fakePorts();
+    expect(statuses(await runScript(branching, fake.ports))).toEqual({
+      signin: ScriptStatus.PASSED,
+      'error-shown': ScriptStatus.NOT_TAKEN,
+      dashboard: ScriptStatus.PASSED,
+      audit: ScriptStatus.PASSED,
+    });
+    expect(fake.calls.some((c) => 'error-shown' === c.args['flowName'])).toBe(false);
+  });
+
+  it('takes the failed road when it failed, though the lane is otherwise blocked by it', async () => {
+    const fake = fakePorts({ failing: ['signin'] });
+    expect(statuses(await runScript(branching, fake.ports))).toEqual({
+      signin: ScriptStatus.FAILED,
+      'error-shown': ScriptStatus.PASSED,
+      dashboard: ScriptStatus.NOT_TAKEN,
+      audit: ScriptStatus.PASSED,
+    });
+  });
+});

@@ -69,6 +69,19 @@ describe('drives the platform chat asked for', () => {
     });
   });
 
+  it('runs the saved plan the dashboard named, not a new one', async () => {
+    const p = platform({ id: 'ld_2', goal: 'Run the saved plan', spec: { plan: 'hp_7' } });
+    const plans: (string | undefined)[] = [];
+    await start({
+      fetch: p.fetch,
+      drive: (_goal, _sessionId, spec) => {
+        plans.push(spec?.plan);
+        return Promise.resolve({ ok: true, summary: 'ran it' });
+      },
+    }).tick();
+    expect(plans).toEqual(['hp_7']);
+  });
+
   it('reports a drive that threw as failed, in its own words', async () => {
     const p = platform({ id: 'ld_2', goal: 'x' });
     await start({ fetch: p.fetch, drive: () => Promise.reject(new Error('not entitled')) }).tick();

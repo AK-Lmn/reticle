@@ -5,6 +5,7 @@ import {
   type AgentLink,
   type HarnessDrive,
 } from '@reticlehq/core';
+import { PLAN_HTML } from './presenter-plan.js';
 import type { AnnotationItem } from '@/review/annotator.js';
 import { marksForAgent } from '@/review/marks-for-agent.js';
 import {
@@ -157,6 +158,7 @@ const NOTES_TEXT = {
 export const HARNESS_PAGE_HTML: string = `<section data-reticle-page-panel="harness" class="reticle-page-panel reticle-harness-page" role="region" aria-label="${HARNESS_ROW_TEXT.PAGE_TITLE}" hidden>
   <div class="reticle-page-heading"><span class="reticle-page-titles"><strong>${HARNESS_ROW_TEXT.PAGE_TITLE}</strong><span class="reticle-page-subtitle">${HARNESS_ROW_TEXT.PAGE_SUBTITLE}</span></span><button type="button" data-reticle-page-close aria-label="Close ${HARNESS_ROW_TEXT.PAGE_TITLE}" title="Close">×</button></div>
   <div data-reticle-harness-page class="reticle-harness-body"></div>
+  ${PLAN_HTML}
   <div ${HARNESS_LOG_ATTR} ${LAST_ACTOR_ATTR}="${LOG_ACTOR.HARNESS}" class="reticle-harness-log" aria-live="polite" aria-label="${HARNESS_ROW_TEXT.LOG_LABEL}"></div>
   <p data-reticle-harness-page-meta class="reticle-foot-meta"></p>
 </section>`;

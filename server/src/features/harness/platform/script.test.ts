@@ -6,7 +6,13 @@ import {
   ReticleTool,
   StepEffect,
 } from '@reticlehq/core';
-import { journeyResults, personasIn, proposeScript, reportPlanResults } from './script.js';
+import {
+  fetchScript,
+  journeyResults,
+  personasIn,
+  proposeScript,
+  reportPlanResults,
+} from './script.js';
 import { ScriptStatus } from '@reticlehq/core';
 
 const flow = {
@@ -60,9 +66,23 @@ describe('asking the platform for the drive plan', () => {
       lanes: [{ id: 'A', journeys: ['refund'] }],
     };
     const platform = { url: 'https://p', apiKey: 'k' };
-    expect((await proposeScript(platform, ask, answer(good)))?.script.source).toBe('platform');
+    const proposed = await proposeScript(platform, ask, answer(good));
+    expect(proposed !== undefined && 'script' in proposed ? proposed.script.source : '').toBe(
+      'platform',
+    );
     const orphaned = { ...good, lanes: [] };
     expect(await proposeScript(platform, ask, answer(orphaned))).toBeUndefined();
+  });
+
+  it('a platform that could not plan says why, so the drive can say it went on without one', async () => {
+    const refused = await proposeScript({ url: 'https://p', apiKey: 'k' }, ask, () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: { message: 'The plan could not be made.' } }), {
+          status: 502,
+        }),
+      ),
+    );
+    expect(refused).toEqual({ refused: 'The plan could not be made.' });
   });
 });
 
@@ -139,6 +159,7 @@ describe('how a plan went', () => {
       { url: 'https://p', apiKey: 'k' },
       'hp_1',
       [{ id: 'refund', title: 'Refund', status: ScriptStatus.FAILED }],
+      ['harness-1'],
       (url, init) => {
         asked = url;
         body = 'string' === typeof init.body ? init.body : '';
@@ -149,7 +170,29 @@ describe('how a plan went', () => {
     expect(asked).toBe('https://p/v1/harness/scripts/hp_1/results');
     expect(JSON.parse(body)).toEqual({
       results: [{ id: 'refund', title: 'Refund', status: 'failed' }],
+      runIds: ['harness-1'],
     });
+  });
+
+  it('reads a saved plan as it stands, and refuses one that cannot run', async () => {
+    const saved = {
+      version: 1,
+      source: 'platform',
+      journeys: [{ id: 'signin', title: 'Sign in', steps: [{ kind: 'replay', flow: 'signin' }] }],
+      lanes: [{ id: 'A', journeys: ['signin'] }],
+    };
+    let asked = '';
+    const answer = (script: unknown) => (url: string) => {
+      asked = url;
+      return Promise.resolve(new Response(JSON.stringify({ planId: 'hp_1', script })));
+    };
+    const read = await fetchScript({ url: 'https://p', apiKey: 'k' }, 'hp_1', answer(saved));
+    expect(asked).toBe('https://p/v1/harness/scripts/hp_1');
+    expect(read?.journeys.map((j) => j.id)).toEqual(['signin']);
+    const unplaced = { ...saved, lanes: [] };
+    expect(
+      await fetchScript({ url: 'https://p', apiKey: 'k' }, 'hp_1', answer(unplaced)),
+    ).toBeUndefined();
   });
 });
 

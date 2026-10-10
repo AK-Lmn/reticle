@@ -255,9 +255,9 @@ export function startChatDrives(
       const tools = reticleToolset(deps, { sessionId, locked: true });
       return { tools: tools.tools, invoke: (tool, args) => tools.invoke(tool, args) };
     },
-    drive: async (goal, sessionId) => {
+    drive: async (goal, sessionId, spec) => {
       const url = sessions.list().find((tab) => tab.sessionId === sessionId)?.url;
-      const outcome = await driveForChat(deps, goal, sessionId);
+      const outcome = await driveForChat(deps, goal, sessionId, spec?.plan);
       return url === undefined ? outcome : { ...outcome, url };
     },
     // The leased tab, or a desktop window's own capture. A web tab only the SDK reaches has no camera.

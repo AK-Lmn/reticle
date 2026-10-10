@@ -90,6 +90,7 @@ export const EXPLORE_TOOLS: ToolDef[] = [
       // schema is re-sent on every turn of every session.
       wait: z.number().min(0).max(WAIT_MAX_S).optional().describe('Seconds; default 50.'),
       runId: z.string().optional(),
+      planId: z.string().optional().describe('Run a plan saved on the dashboard, as it stands.'),
       stop: z.boolean().optional(),
       say: z.string().optional(),
     },
@@ -130,6 +131,9 @@ export const EXPLORE_TOOLS: ToolDef[] = [
       runIds: z.array(z.string()).optional(),
       /** The run's page on the dashboard, when the project is linked. Give it to the user. */
       runUrl: z.string().optional(),
+      /** The saved plan this run drove: the dashboard keeps it, edits it and runs it again. */
+      planId: z.string().optional(),
+      planUrl: z.string().optional(),
       /** The credits the platform says this run spent. */
       creditsSpent: z.number().optional(),
       /** One verdict per requested goal, checked by the harness itself. Only `yes` is proved. */
@@ -349,7 +353,9 @@ const exploreDrive: ExploreDrive = async (deps, env, args, harness, control) => 
   const maxSteps = args['maxSteps'];
   const sessionId = args['sessionId'];
   const expect = args['expect'];
+  const planId = args['planId'];
   const explored = await exploreApp(deps, env, {
+    ...('string' === typeof planId ? { planId } : {}),
     ...('string' === typeof persona ? { focus: persona } : {}),
     ...('number' === typeof maxSteps ? { maxSteps } : {}),
     ...('string' === typeof sessionId ? { sessionId } : {}),
@@ -375,6 +381,8 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     runIds,
     runUrl,
     journeys,
+    planId,
+    planUrl,
   } = explored;
   return {
     stopReason: drive.stopReason,
@@ -389,6 +397,8 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     ...(runIds === undefined ? {} : { runIds: [...runIds] }),
     // Where the user sees this run, and what it cost: the two things an agent is asked after a run.
     ...(runUrl === undefined ? {} : { runUrl }),
+    ...(planId === undefined ? {} : { planId }),
+    ...(planUrl === undefined ? {} : { planUrl }),
     ...(drive.creditsSpent === undefined ? {} : { creditsSpent: drive.creditsSpent }),
     ...(journeys === undefined
       ? {}
@@ -497,13 +507,15 @@ export async function driveForChat(
   deps: ToolDeps,
   goal: string,
   sessionId?: string,
+  planId?: string,
 ): Promise<RemoteDriveOutcome> {
   const explore = EXPLORE_TOOLS.find((tool) => ReticleTool.VERIFY_EXPLORE === tool.name);
   if (explore === undefined) throw new Error('this build has no Harness drive');
   const out = await driveToEnd(
     asRecord(
       await runTool(explore, deps, {
-        persona: goal,
+        // A saved plan carries its own journeys: the request's words are only its label.
+        ...(planId === undefined ? { persona: goal } : { planId }),
         origin: DriveOrigin.CHAT,
         ...(sessionId === undefined ? {} : { sessionId }),
       }),
