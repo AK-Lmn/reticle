@@ -37,8 +37,8 @@ import { appControlsOf } from '@/features/harness/script/app-controls.js';
 import {
   PlanStepKind,
   aboutTheApp,
+  drivingPlan,
   planAsText,
-  withoutReplays,
   type HarnessPlan,
 } from './harness-plan.js';
 import {
@@ -123,7 +123,7 @@ export async function exploreScript(
       ? plan.steps.filter((s) => PlanStepKind.REPLAY === s.kind).map((s) => s.target)
       : [];
   const goals = focus === undefined ? await memoryGoals(deps, options.sessionId) : [focus];
-  const gaps = plan.steps.filter((s) => PlanStepKind.DRIVE === s.kind).map((s) => s.why);
+  const gaps = drivingPlan(plan, focus).steps.map((s) => s.why);
   const flows = await readFlows(reads);
   const known = await productRules(deps, options.sessionId);
   // The platform plans: personas, order, branches and the product rules each journey proves.
@@ -153,7 +153,7 @@ export async function exploreScript(
   // app, make a plan") into journeys through these controls and leaves a narrow one whole; without
   // them, a chat-requested drive of a desktop app planned one step that restated the request.
   const about = await aboutTheApp(
-    planAsText(plan),
+    planAsText(focus === undefined ? plan : drivingPlan(plan, focus)),
     (name, args) => reticleToolset(deps, pinned(options)).invoke(name, args),
     await controlsSeenBefore(deps, options.sessionId),
   );
@@ -202,7 +202,7 @@ async function runPlan(
 
   const maxSteps = options.maxSteps ?? maxStepsFromEnv(env);
   // The script replays the saved flows itself; a model handed them too replayed them again per goal.
-  const open = withoutReplays(plan);
+  const open = drivingPlan(plan, focus);
   // The journey itself leads (its rules are already written into it by the platform): a driver
   // with nothing named to prove stopped after its first half.
   const planFor = (goal?: string): HarnessPlan => {
@@ -282,9 +282,12 @@ async function runPlan(
       // Before the lane's session ends and is graded, so its run cannot read "Proved" over a goal
       // the drive did not reach.
       noteHarnessGoal(harnessOf.get(toolset.tools) ?? harness, result.goalMet);
-      await bankOpenRecording(toolset, result, persona);
+      const banked = await bankOpenRecording(toolset, result, persona);
       if (persona !== undefined) {
-        const saved = reconcileFlows(ahead, await reads.flows.list(), result.toolCalls);
+        const saved = reconcileFlows(ahead, await reads.flows.list(), [
+          ...result.toolCalls,
+          ...banked,
+        ]);
         await recordPersona(reads, [...saved.savedFlows, ...saved.rewroteFlows], persona);
       }
       return result;

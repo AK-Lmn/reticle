@@ -19,6 +19,7 @@ import {
   reconcileFlows,
   openRecordingName,
   bankedIntent,
+  flowsThatCheckNothing,
   withLinkedCredential,
   MSG_NO_HARNESS_KEY,
   MSG_HARNESS_DISABLED,
@@ -108,9 +109,8 @@ describe('exploring an app', () => {
           Promise.resolve({ ok: true, value: { name, steps: steps[name] ?? [] } }),
       },
     } as unknown as ToolDeps;
+    expect(await flowsThatCheckNothing(deps, ['checkout', 'login'])).toEqual(['checkout']);
     const result = await exploreApp(deps, {}, { driver: finishing(''), skipPlatformConfig: true });
-    expect(result.savedFlows).toEqual(['checkout', 'login']);
-    expect(result.unverifiedFlows).toEqual(['checkout']);
     // The run it syncs as, so the platform's chat can fold that run into the check it asked for.
     expect(result.runIds).toEqual([expect.stringMatching(/^harness-[0-9a-f-]{36}$/)]);
   });
@@ -141,7 +141,11 @@ describe('exploring an app', () => {
     expect(unlinked.runUrl).toBeUndefined();
   });
 
-  it('records the persona as the intent of a saved flow that has none, whoever saved it', async () => {
+  /*
+   * A named-persona run stamped its persona onto a flow another session saved while it drove, and
+   * listed it as its own. Only the flows this drive's own saves wrote are its.
+   */
+  it('never adopts a flow another session saved while it drove', async () => {
     const files: Record<
       string,
       { name: string; intent?: string; projectId?: string; steps: unknown[] }
@@ -162,7 +166,7 @@ describe('exploring an app', () => {
         },
       },
     } as unknown as ToolDeps;
-    await exploreApp(
+    const result = await exploreApp(
       deps,
       {},
       {
@@ -171,9 +175,8 @@ describe('exploring an app', () => {
         focus: 'a visitor who clicks the counter twice',
       },
     );
-    expect(saved.map((f) => [f.name, f.intent, f.project])).toEqual([
-      ['checkout', 'a visitor who clicks the counter twice', 'shop'],
-    ]);
+    expect(result.savedFlows).toEqual([]);
+    expect(saved).toEqual([]);
   });
 
   it('banks an open recording under the persona it was driving for', () => {
@@ -183,14 +186,14 @@ describe('exploring an app', () => {
     expect(bankedIntent(undefined, 'harness-drive-home')).toContain('harness-drive-home');
   });
 
-  it('reports the flows that now exist and did not before', async () => {
+  it('does not claim a flow that appeared while it drove but that it never saved', async () => {
     const result = await exploreApp(
       depsWithFlows(['login'], ['login', 'checkout']),
       {},
       { driver: finishing('drove checkout'), skipPlatformConfig: true },
     );
 
-    expect(result.savedFlows).toEqual(['checkout']);
+    expect(result.savedFlows).toEqual([]);
     expect(result.drive.summary).toBe('drove checkout');
   });
 
@@ -288,6 +291,16 @@ describe('reconciling what a drive left behind', () => {
     );
     expect(result.savedFlows).toEqual(['checkout']);
     expect(result.rewroteFlows).toEqual([]);
+  });
+
+  /** A run listed flows other agents saved in the same project while it drove, as its own. */
+  it('claims only the flows its own saves wrote, not what others saved meanwhile', () => {
+    const result = reconcileFlows(
+      new Set(['sign-in']),
+      ['sign-in', 'checkout', 'harness-maya-other-persona', 'drive-plans-flows'],
+      [saveCall({ flowName: 'checkout' }, { name: 'checkout' })],
+    );
+    expect(result.savedFlows).toEqual(['checkout']);
   });
 
   it('counts a flow that already existed and was written again', () => {

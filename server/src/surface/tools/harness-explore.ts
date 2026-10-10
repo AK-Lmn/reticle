@@ -35,7 +35,7 @@ import {
   dashboardRunUrl,
   readDashboardUrl,
 } from '@/memory/project/sync-status.js';
-import { buildHarnessPlan, planAsText, withoutReplays, type HarnessPlan } from './harness-plan.js';
+import { buildHarnessPlan, drivingPlan, planAsText, type HarnessPlan } from './harness-plan.js';
 import { allSessionIntents } from '@/memory/intent/open-intents.js';
 import { fetchPlatformConfig, type ConfigFetch } from '@/features/harness/platform-config.js';
 import {
@@ -359,7 +359,7 @@ export async function exploreApp(
   // every saved flow, the consequence that must hold for each, and the declared intent nobody has
   // tested — which is the whole of what a drive should be deciding against.
   const plan = await readPlan(reads, options.sessionId);
-  const driving = withoutReplays(plan);
+  const driving = drivingPlan(plan, options.focus);
   const built =
     options.driver === undefined
       ? buildDriver(env, maxSteps, driving, options.driverName, options.focus)
@@ -410,7 +410,7 @@ export async function exploreApp(
   // breaks, or whose model simply stops asking for tools, leaves a recording open and everything it
   // drove unsaved — work paid for and thrown away. Saving is not a decision any model gets to make
   // and not something a step budget gets to cut off, so it happens here, after the loop, always.
-  await bankOpenRecording(toolset, drive, options.focus);
+  const banked = await bankOpenRecording(toolset, drive, options.focus);
   const goals = [
     ...(await checkGoals(invoke, options.goals ?? goalsIn(options.focus), opening)),
     ...(options.expect === undefined ? [] : [await checkExpect(invoke, options.expect)]),
@@ -423,7 +423,7 @@ export async function exploreApp(
   if (unproved !== undefined) narrate(unproved, true);
 
   const after = await reads.flows.list();
-  const reconciled = reconcileFlows(before, after, drive.toolCalls);
+  const reconciled = reconcileFlows(before, after, [...drive.toolCalls, ...banked]);
   if (options.focus !== undefined) {
     await recordPersona(
       reads,
@@ -617,8 +617,10 @@ export function reconcileFlows(
     })
     .filter((name): name is string => name !== undefined && present.has(name));
 
+  // Only what this drive's own saves wrote: a before/after diff of the project's flows claimed the
+  // flows other agents saved in the same project at the same time.
   return {
-    savedFlows: after.filter((name) => !before.has(name)),
+    savedFlows: [...new Set(claimed.filter((name) => !before.has(name)))],
     rewroteFlows: [...new Set(claimed.filter((name) => before.has(name)))],
   };
 }
@@ -769,17 +771,18 @@ export async function bankOpenRecording(
   toolset: HarnessToolset,
   drive: HarnessResult,
   persona: string | undefined,
-): Promise<void> {
+): Promise<ToolOutcome[]> {
   const open = openRecordingName(drive.toolCalls);
-  if (open === undefined) return;
+  if (open === undefined) return [];
+  const args = { flowName: open, intent: bankedIntent(persona, open) };
   try {
     await toolset.invoke(ReticleTool.RECORD, { action: 'stop', recordingName: open });
-    await toolset.invoke(ReticleTool.FLOW_SAVE, {
-      flowName: open,
-      intent: bankedIntent(persona, open),
-    });
+    const result = await toolset.invoke(ReticleTool.FLOW_SAVE, args);
+    // Returned so the save is this drive's own, as a save the model made is.
+    return [{ id: 'bank', name: ReticleTool.FLOW_SAVE, args, result, isError: false }];
   } catch {
     /* last chance, not a checkpoint */
+    return [];
   }
 }
 
