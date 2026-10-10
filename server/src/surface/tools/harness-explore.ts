@@ -638,7 +638,7 @@ export function reconcileFlows(
  */
 export const MSG_HARNESS_DISABLED =
   "The Reticle Harness is off for this project. The user can switch it on in the HUD's Settings " +
-  'or the Reticle dashboard (Settings → Verification model); until then, drive the app yourself ' +
+  'or the Reticle dashboard (Settings → Projects → Reticle Harness on <project>); until then, drive the app yourself ' +
   'through the MCP tools.';
 
 /**

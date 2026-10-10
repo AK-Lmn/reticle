@@ -65,6 +65,14 @@ function finishing(summary: string): ModelDriver {
  * A run answered `goalMet: true` after zero actions on a tab that already showed the target. The
  * driver's word is not the answer: a drive that did nothing did not meet its goal.
  */
+/** The refusal pointed at a "Verification model" setting no settings page has. */
+describe('the Harness-off refusal', () => {
+  it('names where the switch really is', () => {
+    expect(MSG_HARNESS_DISABLED).toContain('Settings → Projects → Reticle Harness on <project>');
+    expect(MSG_HARNESS_DISABLED).not.toContain('Verification model');
+  });
+});
+
 describe('a drive that did nothing', () => {
   it('never reports its goal met, whatever the driver says', async () => {
     const claiming: ModelDriver = {
