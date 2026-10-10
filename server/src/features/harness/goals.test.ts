@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ReticleTool } from '@reticlehq/core';
-import { checkExpect, checkGoals, goalsIn, goalsMet, unprovedGoals } from './goals.js';
+import { checkExpect, checkGoals, goalOfDrive, goalsIn, goalsMet, unprovedGoals } from './goals.js';
 
 describe('the goals a drive was asked to prove (#1316)', () => {
   it('are the strings the persona quoted', () => {
@@ -68,11 +68,12 @@ describe('the goals a drive was asked to prove (#1316)', () => {
       {
         text: 'Compose',
         verified: 'unknown',
-        reason: 'it was on the page before the drive started, so seeing it proves nothing',
+        reason:
+          'already_true: it was on the page before the drive started, so seeing it proves nothing',
       },
     ]);
     expect(unprovedGoals(checks)).toContain(
-      '"Compose" (it was on the page before the drive started',
+      '"Compose" (already_true: it was on the page before the drive started',
     );
   });
 
@@ -131,5 +132,31 @@ describe('whether the drive met the goals it was given', () => {
       ]),
     ).toBe(false);
     expect(goalsMet([{ text: 'Saved', verified: 'no' }])).toBe(false);
+  });
+});
+
+/*
+ * A run answered `goalMet: true` with zero actions on a tab that already showed the end state, and
+ * another with both of its goals `unknown`: the driver's word was reported as the result.
+ */
+describe('the goal verdict a drive reports', () => {
+  const yes = { text: 'Saved', verified: 'yes' };
+  const already = { text: 'Passed', verified: 'unknown', reason: 'already_true: …' };
+
+  it('is never met without an action that ran, whatever the driver said', () => {
+    expect(goalOfDrive(true, [], false)).toBe(false);
+    expect(goalOfDrive(true, [yes], false)).toBe(false);
+  });
+
+  it('is decided by the goals, not the driver, when there are goals', () => {
+    expect(goalOfDrive(true, [already], true)).toBe(false);
+    expect(goalOfDrive(undefined, [yes], true)).toBe(true);
+    expect(goalOfDrive(false, [yes], true)).toBe(false);
+  });
+
+  it("keeps the driver's word with no goals, and says nothing when nothing judged it", () => {
+    expect(goalOfDrive(true, [], true)).toBe(true);
+    expect(goalOfDrive(undefined, [], true)).toBeUndefined();
+    expect(goalOfDrive(undefined, [], false)).toBeUndefined();
   });
 });

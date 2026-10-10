@@ -16,7 +16,7 @@ import {
   type ScriptRun,
 } from '@/features/harness/script/script-run.js';
 import { CUSTOM_DRIVER_NAME } from '@/features/harness/drivers.js';
-import { checkTally, verdictLine } from '@/features/harness/drive-report.js';
+import { actedOnApp, checkTally, verdictLine } from '@/features/harness/drive-report.js';
 import {
   runHarness,
   StopReason,
@@ -50,7 +50,14 @@ import {
   reportPlanResults,
   type JourneyResult,
 } from '@/features/harness/platform/script.js';
-import { checkExpect, checkGoals, goalsIn, type GoalCheck } from '@/features/harness/goals.js';
+import {
+  checkExpect,
+  checkGoals,
+  goalOfDrive,
+  goalsIn,
+  readOpening,
+  type GoalCheck,
+} from '@/features/harness/goals.js';
 import {
   serverOptionsFromEnv,
   type PlatformCredential,
@@ -264,11 +271,14 @@ async function runPlan(
           ? undefined
           : goal);
       const ahead = new Set(await reads.flows.list());
-      const result = await runHarness(driverFor(persona, goal).driver, toolset, {
+      const driven = await runHarness(driverFor(persona, goal).driver, toolset, {
         ...steering(options),
         maxSteps: Math.min(steps, maxSteps),
         focus: [planAsText(planFor(goal)), `Focus: ${goal}`].join('\n\n'),
       });
+      // The driver's word, unless the lane did nothing: then its goal was not met by it.
+      const laneGoal = goalOfDrive(driven.goalMet, [], actedOnApp(driven.toolCalls));
+      const result = { ...driven, ...(laneGoal === undefined ? {} : { goalMet: laneGoal }) };
       // Before the lane's session ends and is graded, so its run cannot read "Proved" over a goal
       // the drive did not reach.
       noteHarnessGoal(harnessOf.get(toolset.tools) ?? harness, result.goalMet);
@@ -285,6 +295,10 @@ async function runPlan(
     `Harness plan from the platform · ${String(script.journeys.length)} journeys in ${String(script.lanes.length)} lane(s)` +
       (1 < ports.parallel ? `, ${String(ports.parallel)} at once` : ''),
   );
+  // Read before anything is driven: a goal this page already shows proves nothing at the end.
+  const endInvoke = (name: string, args: Record<string, unknown>): Promise<unknown> =>
+    ports.toolset(pinned(options).sessionId, focus).invoke(name, args);
+  const opening = await readOpening(endInvoke);
   let run: ScriptRun;
   try {
     run = await runScript(script, ports, (view) => {
@@ -364,19 +378,18 @@ async function runPlan(
     ...reconciled.savedFlows,
     ...reconciled.rewroteFlows,
   ]);
+  // The texts a named journey quoted must be on the page at the end, checked as the persona drive
+  // always checked them, and not counted when the page showed them before the drive began.
+  const goals = await endGoals(endInvoke, options.goals ?? goalsIn(focus), options.expect, opening);
+  const goalMet = goalOfDrive(drive.goalMet, goals, actedOnApp(run.toolCalls));
+  if (0 < goals.length) for (const id of lanes.all()) noteHarnessGoal(id, goalMet);
   return {
-    drive,
+    drive: { ...drive, ...(goalMet === undefined ? {} : { goalMet }) },
     plan,
     driverName,
     ...reconciled,
     unverifiedFlows,
-    // The texts a named journey quoted must be on the page at the end, checked as the persona
-    // drive always checked them.
-    goals: await endGoals(
-      (name, args) => ports.toolset(pinned(options).sessionId, focus).invoke(name, args),
-      options.goals ?? goalsIn(focus),
-      options.expect,
-    ),
+    goals,
     ...(0 === runIds.length ? {} : { runIds }),
     ...(planId === undefined ? {} : { planId }),
     journeys: results,
@@ -392,9 +405,10 @@ async function endGoals(
   invoke: (name: string, args: Record<string, unknown>) => Promise<unknown>,
   texts: readonly string[],
   expect: Record<string, unknown> | undefined,
+  opening: string | undefined,
 ): Promise<GoalCheck[]> {
   return [
-    ...(await checkGoals(invoke, texts)),
+    ...(await checkGoals(invoke, texts, opening)),
     ...(expect === undefined ? [] : [await checkExpect(invoke, expect)]),
   ];
 }

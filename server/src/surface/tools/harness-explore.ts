@@ -25,7 +25,7 @@ import { planUrl } from '@/features/harness/platform/platform-drives.js';
 import { flowsForSession } from '@/language/flows/flow-store-for-session.js';
 import { projectForRoot } from '@/memory/project/project-for-root.js';
 import type { ToolDeps } from './tool-kit.js';
-import { checkTally, verdictLine } from '@/features/harness/drive-report.js';
+import { actedOnApp, checkTally, verdictLine } from '@/features/harness/drive-report.js';
 import { CUSTOM_DRIVER_NAME, SERVER_DRIVER } from '@/features/harness/drivers.js';
 import { buildDomainModel } from '@/judgement/domain/domain-model.js';
 import { readContract } from '@/memory/project/dir/reticle-dir.js';
@@ -58,7 +58,7 @@ import { noteDriveLine } from '@/features/harness/drive-runs.js';
 import {
   checkExpect,
   checkGoals,
-  goalsMet,
+  goalOfDrive,
   readOpening,
   goalsIn,
   unprovedGoals,
@@ -415,8 +415,10 @@ export async function exploreApp(
     ...(await checkGoals(invoke, options.goals ?? goalsIn(options.focus), opening)),
     ...(options.expect === undefined ? [] : [await checkExpect(invoke, options.expect)]),
   ];
-  // The goals it was given decide whether the journey was done, not a click that held on the way.
-  noteHarnessGoal(harnessId, goalsMet(goals));
+  // The goals it was given decide whether the journey was done, not a click that held on the way,
+  // and never the driver's word over a drive that did nothing.
+  const goalMet = goalOfDrive(drive.goalMet, goals, actedOnApp(drive.toolCalls));
+  noteHarnessGoal(harnessId, goalMet);
   const unproved = unprovedGoals(goals);
   if (unproved !== undefined) narrate(unproved, true);
 
@@ -435,7 +437,7 @@ export async function exploreApp(
   ]);
   const runId = harnessRunId(harnessId);
   return {
-    drive,
+    drive: { ...drive, ...(goalMet === undefined ? {} : { goalMet }) },
     plan,
     driverName: built.name,
     ...reconciled,

@@ -6,7 +6,7 @@
  * word for it is not evidence, so after every drive the harness checks each goal itself, with the
  * same assert any agent would make, and reports one verdict per goal.
  */
-import { PredicateKind, ReticleTool, Verified, asRecord } from '@reticlehq/core';
+import { PredicateKind, ReticleTool, Verified, VerifiedReason, asRecord } from '@reticlehq/core';
 
 /** More than this and the persona is a document, not a set of goals. */
 const MAX_GOALS = 10;
@@ -25,7 +25,7 @@ export interface GoalCheck {
 }
 
 /** Said of a goal the page showed before the drive did anything. */
-const ALREADY_SHOWN = 'it was on the page before the drive started, so seeing it proves nothing';
+const ALREADY_SHOWN = `${VerifiedReason.ALREADY_TRUE}: it was on the page before the drive started, so seeing it proves nothing`;
 
 /** The observable goals in a persona: whatever it quoted. */
 export function goalsIn(persona: string | undefined): string[] {
@@ -130,6 +130,23 @@ export async function checkExpect(
 /** Whether the drive met the goals it was given: undefined when it was given none. */
 export function goalsMet(checks: readonly GoalCheck[]): boolean | undefined {
   return 0 === checks.length ? undefined : checks.every((c) => Verified.YES === c.verified);
+}
+
+/**
+ * Whether the drive met its goal, as the answer and the run report it. The driver's own `goalMet`
+ * is its word, never evidence: a run answered `goalMet: true` after zero actions on a tab that
+ * already showed the end state, and another with both its goals `unknown`. Never true without an
+ * action that ran; with goals, met only when every one was proved and the driver did not say it
+ * missed; with none, the driver's word stands. Undefined when nothing judged it.
+ */
+export function goalOfDrive(
+  claimed: boolean | undefined,
+  checks: readonly GoalCheck[],
+  acted: boolean,
+): boolean | undefined {
+  const judged = 0 < checks.length ? false !== claimed && true === goalsMet(checks) : claimed;
+  if (judged === undefined) return undefined;
+  return acted && judged;
 }
 
 /** One line naming the goals the drive did not prove, or undefined when it proved them all. */

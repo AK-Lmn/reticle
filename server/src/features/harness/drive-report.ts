@@ -250,6 +250,14 @@ export function drivenSteps(toolCalls: readonly ToolOutcome[]): DrivenStep[] {
   return steps;
 }
 
+/** Whether the drive did anything to the app: an action that ran, or a flow it replayed. */
+export function actedOnApp(toolCalls: readonly ToolOutcome[]): boolean {
+  return (
+    drivenSteps(toolCalls).some((step) => 'error' !== step.verified) ||
+    0 < replayedFlows(toolCalls).length
+  );
+}
+
 /**
  * The account, as lines.
  *

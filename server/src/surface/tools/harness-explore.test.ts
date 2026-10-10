@@ -60,6 +60,34 @@ function finishing(summary: string): ModelDriver {
   };
 }
 
+/*
+ * A run answered `goalMet: true` after zero actions on a tab that already showed the target. The
+ * driver's word is not the answer: a drive that did nothing did not meet its goal.
+ */
+describe('a drive that did nothing', () => {
+  it('never reports its goal met, whatever the driver says', async () => {
+    const claiming: ModelDriver = {
+      turn: (): Promise<ModelTurn> =>
+        Promise.resolve({
+          text: '',
+          calls: [
+            { id: '1', name: 'reticle_assert', args: { predicate: { kind: 'text' } } },
+            { id: '2', name: FINISH_TOOL.name, args: { summary: 'done', goalMet: true } },
+          ],
+        }),
+    };
+    const result = await exploreApp(
+      depsWithFlows([]),
+      {},
+      {
+        driver: claiming,
+        skipPlatformConfig: true,
+      },
+    );
+    expect(result.drive.goalMet).toBe(false);
+  });
+});
+
 describe('exploring an app', () => {
   /**
    * The real drive this guards against saved `harness-drive-home`: one click, no `expect`, replayed
