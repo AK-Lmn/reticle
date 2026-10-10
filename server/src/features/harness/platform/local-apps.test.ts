@@ -82,6 +82,32 @@ describe('the apps reported to each platform', () => {
     expect(groups[0]?.apps[0]?.url).toBe('http://localhost:3000/compose');
   });
 
+  /**
+   * Of two tabs of one app, the one with more channels used to speak alone, so the score depended
+   * on which tab reported: test ids seen in one tab and source in another counted as neither.
+   */
+  it('merges the channels and gaps every tab of an app has seen', async () => {
+    const gapA = { kind: 'missing-testid', missing: 'e1', fix: 'add one', seenAt: 1 };
+    const gapB = { kind: 'no-source-mapping', missing: 'e2', fix: 'stamp it', seenAt: 2 };
+    const groups = await appsByPlatform(
+      [
+        tab('s1', 'http://localhost:3000/', { channels: ['ui', 'testid'], gaps: [gapA] }),
+        tab('s3', 'http://localhost:3000/compose', {
+          channels: ['ui', 'net', 'source'],
+          gaps: [gapB, gapA],
+        }),
+      ],
+      undefined,
+      MACHINE.id,
+      describeTab,
+    );
+    const app = groups[0]?.apps[0];
+    expect([...(app?.[LinkReportKey.CHANNELS] ?? [])].sort()).toEqual(
+      ['net', 'source', 'testid', 'ui'].sort(),
+    );
+    expect(app?.[LinkReportKey.GAPS]).toHaveLength(2);
+  });
+
   it('reports each project once, to the platform its link names, with what it is built with', async () => {
     const groups = await appsByPlatform(
       [

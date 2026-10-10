@@ -157,6 +157,42 @@ const withoutMarks = (raw: string): string => {
   }
 };
 
+/** Every channel either tab announced, once each; undefined when neither said. */
+function mergedChannels(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): string[] | undefined {
+  return a === undefined && b === undefined
+    ? undefined
+    : [...new Set([...(a ?? []), ...(b ?? [])])];
+}
+
+/** Every gap either tab recorded, once per kind + missing, the first seen kept. */
+function mergedGaps(
+  a: readonly LinkAppGap[] | undefined,
+  b: readonly LinkAppGap[] | undefined,
+): LinkAppGap[] {
+  const out = new Map<string, LinkAppGap>();
+  for (const gap of [...(a ?? []), ...(b ?? [])]) {
+    const id = `${gap.kind}\u0000${gap.missing}`;
+    if (!out.has(id)) out.set(id, gap);
+  }
+  return [...out.values()];
+}
+
+/** `app` carrying the merged channels and gaps, omitting each when there is nothing to say. */
+function withSeen<T extends object>(
+  app: T,
+  channels: string[] | undefined,
+  gaps: LinkAppGap[],
+): T & { [LinkReportKey.CHANNELS]?: string[]; [LinkReportKey.GAPS]?: LinkAppGap[] } {
+  return {
+    ...app,
+    ...(channels === undefined ? {} : { [LinkReportKey.CHANNELS]: channels }),
+    ...(0 === gaps.length ? {} : { [LinkReportKey.GAPS]: gaps }),
+  };
+}
+
 /**
  * The apps to report, grouped by the platform credential each one's project is linked with. The
  * linked credential is reported even with no app open: it is how the chat knows the machine is there
@@ -183,15 +219,20 @@ export async function appsByPlatform(
     if (undefined === about?.platform) continue;
     const key = appKeyOf(machineId, about.dir, tab.projectId);
     const apps = group(about.platform).apps;
-    // Of two tabs of one app, the one that has seen the most speaks for it: a fresh tab opened beside
-    // a driven one reported first and dropped the setup score, locking the Harness. A tie keeps the
-    // earlier tab, so a visible one still speaks over a hidden one.
+    // Of two tabs of one app, the one that has seen the most speaks for it (a tie keeps the earlier,
+    // so a visible one still speaks over a hidden one). What they have SEEN is merged, so the setup
+    // score does not depend on which tab happened to report: a fresh tab opened beside a driven one
+    // once dropped it and locked the Harness.
     const held = apps.get(key);
+    const channels = mergedChannels(held?.[LinkReportKey.CHANNELS], tab.channels);
+    const gaps = mergedGaps(held?.[LinkReportKey.GAPS], tab.gaps);
     if (
       held !== undefined &&
       (tab.channels?.length ?? 0) <= (held[LinkReportKey.CHANNELS]?.length ?? 0)
-    )
+    ) {
+      apps.set(key, withSeen(held, channels, gaps));
       continue;
+    }
     const stack = [
       ...new Set([...tab.adapters, ...(tab.runtime === undefined ? [] : [tab.runtime])]),
     ].filter((part) => WEB_RUNTIME !== part);
@@ -202,14 +243,11 @@ export async function appsByPlatform(
       ...(tab.title === undefined ? {} : { title: tab.title }),
       stack,
       ...(tab.sdkVersion === undefined ? {} : { sdkVersion: tab.sdkVersion }),
-      ...(tab.channels === undefined ? {} : { [LinkReportKey.CHANNELS]: tab.channels }),
-      ...(tab.gaps === undefined || 0 === tab.gaps.length
-        ? {}
-        : { [LinkReportKey.GAPS]: tab.gaps }),
       ...(0 === tab.adapters.length ? {} : { [LinkReportKey.ADAPTERS]: tab.adapters }),
       ...(tab.notApplicable === undefined
         ? {}
         : { [LinkReportKey.NOT_APPLICABLE]: tab.notApplicable }),
+      ...withSeen({}, channels, gaps),
     });
   }
   return [...groups.values()].map(({ platform, apps }) => ({ platform, apps: [...apps.values()] }));
