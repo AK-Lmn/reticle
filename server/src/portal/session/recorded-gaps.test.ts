@@ -12,7 +12,10 @@ import {
 
 const gap = (missing: string) => ({ kind: 'no-source-mapping', missing, fix: 'add the plugin' });
 
-afterEach(() => forgetRecordedGaps('s1'));
+afterEach(() => {
+  forgetRecordedGaps('s1');
+  forgetRecordedGaps('s2');
+});
 
 describe('recorded gaps', () => {
   it('keeps one entry per kind and missing, newest first, stamped when last seen', () => {
@@ -108,5 +111,22 @@ describe('a tab’s coverage', () => {
     );
     expect(below.prompt).toContain(CoverageCapability.TEST_IDS);
     expect(below.prompt).toContain('reticle verify http://localhost:3000/');
+  });
+});
+
+/**
+ * The daemon's own refusal named a different missing item from the platform's, because it read one
+ * tab while the platform read the app's merged report. It reads every tab of the app now.
+ */
+describe('an app with several tabs', () => {
+  it('counts what any of its tabs has seen, and every gap any of them recorded', () => {
+    const fresh = { id: 's1', url: 'http://localhost:3000/', channels: ['ui', 'net'] };
+    const driven = { id: 's2', url: 'http://localhost:3000/x', channels: ['ui', 'net', 'log'] };
+    noteActedElement('s2', { testid: 'save' });
+    recordGaps('s2', [gap('e7')], 1);
+    const merged = instrumentationOf(fresh, [driven]);
+    expect(merged.seen).toContain(CoverageCapability.TEST_IDS);
+    expect(instrumentationOf(fresh).seen).not.toContain(CoverageCapability.TEST_IDS);
+    expect(merged.prompt ?? '').toContain('e7');
   });
 });

@@ -181,9 +181,17 @@ export interface TabHarnessGate {
  */
 export function instrumentationOf(
   tab: InstrumentedTab,
+  /** The app's other tabs: what any of them has seen or recorded counts, as on the platform. */
+  siblings: readonly InstrumentedTab[] = [],
 ): Coverage & { prompt?: string; harnessGate: TabHarnessGate } {
-  const gaps = recordedGaps(tab.id);
-  const coverage = coverageOf({ channels: announcedChannels(tab), gaps });
+  const tabs = [tab, ...siblings];
+  const gaps = [
+    ...new Map(
+      tabs.flatMap((each) => recordedGaps(each.id)).map((g) => [`${g.kind}\u0000${g.missing}`, g]),
+    ).values(),
+  ];
+  const channels = [...new Set(tabs.flatMap((each) => announcedChannels(each)))];
+  const coverage = coverageOf({ channels, gaps });
   const url = tab.url ?? '';
   const appName = appNameOf(url);
   const notApplicable = notApplicableOf(tab);

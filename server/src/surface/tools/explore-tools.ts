@@ -37,6 +37,7 @@ import {
   platformRunAnswer,
 } from '@/features/harness/platform/platform-drives.js';
 import { serverOptionsFromEnv } from '@/features/harness/platform/server-driver.js';
+import { reportPlanBlocked, savedPlanDrivesNothing } from '@/features/harness/platform/script.js';
 import { harnessRunId } from '@/judgement/runs/drive-run.js';
 import { DRIVE_RECORD_SUFFIX, reticleDirPaths } from '@/memory/project/dir/reticle-dir.js';
 import { sessionRoot } from '@/memory/project/session-root.js';
@@ -44,6 +45,7 @@ import { runTool } from './invoke-tool.js';
 import { driveVerdict, type RemoteDriveOutcome } from '@/features/harness/platform/remote-drive.js';
 import {
   coverageRefusal,
+  firstLine,
   exploreApp,
   harnessAvailable,
   withLinkedCredential,
@@ -236,8 +238,20 @@ export async function answerExplore(
     ...('string' === typeof driveId ? { [ReticleEnv.DRIVE_ID]: driveId } : {}),
   };
   // The coverage gate first: it is local, and the one thing to fix before anything else matters.
-  const locked = coverageRefusal(deps, sessionId);
-  if (locked !== undefined) throw new Error(locked);
+  // Not for a saved plan that only replays flows (no model turn to guard), and a plan it refuses
+  // is told so, so the plan's history records the attempt.
+  const planId = str(args['planId']);
+  const platform = serverOptionsFromEnv(env);
+  const replayOnly =
+    planId !== undefined &&
+    platform !== undefined &&
+    (await savedPlanDrivesNothing(platform, planId));
+  const locked = replayOnly ? undefined : coverageRefusal(deps, sessionId);
+  if (locked !== undefined) {
+    if (planId !== undefined && platform !== undefined)
+      await reportPlanBlocked(platform, planId, firstLine(locked));
+    throw new Error(locked);
+  }
   if (!harnessAvailable(env)) throw new Error(MSG_NO_HARNESS_KEY);
   const harness = randomUUID();
   const runId = harnessRunId(harness);

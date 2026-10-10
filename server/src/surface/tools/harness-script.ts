@@ -46,6 +46,7 @@ import {
   journeyResults,
   personasIn,
   proposeScript,
+  reportPlanBlocked,
   reportPlanResults,
   type JourneyResult,
 } from '@/features/harness/platform/script.js';
@@ -58,6 +59,7 @@ import {
   MSG_HARNESS_DISABLED,
   bankOpenRecording,
   buildDriver,
+  firstLine,
   flowsThatCheckNothing,
   maxStepsFromEnv,
   msgDriveCutOff,
@@ -126,14 +128,19 @@ export async function exploreScript(
     throw new Error(msgSavedPlanUnreadable(options.planId));
   if (platform === undefined) return undefined;
   if (options.planId !== undefined) {
-    const saved = await fetchScript(platform, options.planId);
-    if (saved === undefined) throw new Error(msgSavedPlanUnreadable(options.planId));
-    return runPlan(deps, env, options, before, {
-      platform,
-      plan,
-      script: saved,
-      planId: options.planId,
-    });
+    const planId = options.planId;
+    // Refused or broken before a journey ran is still said to the plan, so its history shows it.
+    // ponytail: a throw from inside a running plan is reported as all blocked too; runPlan reports
+    // real results itself whenever it returns.
+    try {
+      const saved = await fetchScript(platform, planId);
+      if (saved === undefined) throw new Error(msgSavedPlanUnreadable(planId));
+      return await runPlan(deps, env, options, before, { platform, plan, script: saved, planId });
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error);
+      await reportPlanBlocked(platform, planId, firstLine(why));
+      throw error;
+    }
   }
   // What the screen offers, for a named journey too. The platform splits a broad request ("test my
   // app, make a plan") into journeys through these controls and leaves a narrow one whole; without

@@ -20,7 +20,12 @@ import {
   type FlowStep,
   type PlanView,
 } from '@reticlehq/core';
-import { DriveScriptSchema, checkScript, type DriveScript } from '@reticlehq/core/artifacts';
+import {
+  DriveScriptSchema,
+  ScriptStepKind,
+  checkScript,
+  type DriveScript,
+} from '@reticlehq/core/artifacts';
 import { platformHeaders, type PlatformCredential } from './server-driver.js';
 
 const SCRIPTS_PATH = '/v1/harness/scripts';
@@ -160,6 +165,54 @@ export interface JourneyResult {
   id: string;
   title: string;
   status: ScriptStatus;
+  /** What happened, in a line: why a journey that never ran was blocked. */
+  line?: string;
+}
+
+/**
+ * The plan only replays saved flows: no step anywhere, branch cases included, hands the model
+ * anything to do. Such a run spends no model turns, so the gates that guard a model drive do not
+ * apply to it.
+ */
+export function drivesNothing(script: DriveScript): boolean {
+  return script.journeys.every((journey) =>
+    journey.steps.every((step) =>
+      ScriptStepKind.BRANCH === step.kind
+        ? step.cases.every((c) => c.steps.every((leaf) => ScriptStepKind.ACT !== leaf.kind))
+        : ScriptStepKind.ACT !== step.kind,
+    ),
+  );
+}
+
+/** The saved plan reads as one that only replays saved flows. Unreadable: not known to, so false. */
+export async function savedPlanDrivesNothing(
+  platform: PlatformCredential,
+  planId: string,
+  doFetch: FetchLike = (url, init) => fetch(url, init),
+): Promise<boolean> {
+  const script = await fetchScript(platform, planId, doFetch);
+  return script !== undefined && drivesNothing(script);
+}
+
+/**
+ * A saved plan the run was refused for, or that broke before any journey ran, told to the plan
+ * anyway: every journey blocked, with the reason, so the plan's history records the attempt instead
+ * of showing nothing. Best-effort, like every report to the plan.
+ */
+export async function reportPlanBlocked(
+  platform: PlatformCredential,
+  planId: string,
+  reason: string,
+  doFetch: FetchLike = (url, init) => fetch(url, init),
+): Promise<boolean> {
+  const script = await fetchScript(platform, planId, doFetch);
+  const results = (script?.journeys ?? []).map((journey) => ({
+    id: journey.id,
+    title: journey.title,
+    status: ScriptStatus.BLOCKED,
+    line: reason,
+  }));
+  return reportPlanResults(platform, planId, results, [], doFetch);
 }
 
 /** Worst first: a journey that ran in two lanes reports the worse of the two. */

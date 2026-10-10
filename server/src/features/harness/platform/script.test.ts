@@ -7,13 +7,16 @@ import {
   StepEffect,
 } from '@reticlehq/core';
 import {
+  drivesNothing,
   fetchScript,
   journeyResults,
+  reportPlanBlocked,
   personasIn,
   proposeScript,
   reportPlanResults,
 } from './script.js';
 import { ScriptStatus } from '@reticlehq/core';
+import { DriveScriptSchema } from '@reticlehq/core/artifacts';
 
 const flow = {
   version: FLOW_FILE_VERSION,
@@ -230,5 +233,67 @@ describe('what a flow is sent with', () => {
       },
     );
     expect((JSON.parse(body) as { flows: { checks: number }[] }).flows[0]?.checks).toBe(1);
+  });
+});
+
+/** A plan the platform refused, or that broke before a journey ran, still reports to its plan. */
+describe('a plan that never got to run', () => {
+  const saved = {
+    version: 1,
+    source: 'platform',
+    journeys: [
+      { id: 'signin', title: 'Sign in', steps: [{ kind: 'replay', flow: 'signin' }] },
+      { id: 'refund', title: 'Refund', steps: [{ kind: 'replay', flow: 'refund' }] },
+    ],
+    lanes: [{ id: 'A', journeys: ['signin', 'refund'] }],
+  };
+
+  it('reports every journey blocked, with the reason, against the plan id', async () => {
+    const posted: { url: string; body: string }[] = [];
+    await reportPlanBlocked(
+      { url: 'https://p', apiKey: 'k' },
+      'hp_1',
+      'Harness unlocks at 80%.',
+      (url, init) => {
+        if ('POST' === init.method)
+          posted.push({ url, body: 'string' === typeof init.body ? init.body : '' });
+        return Promise.resolve(new Response(JSON.stringify({ planId: 'hp_1', script: saved })));
+      },
+    );
+    expect(posted).toHaveLength(1);
+    expect(posted[0]?.url).toBe('https://p/v1/harness/scripts/hp_1/results');
+    expect(JSON.parse(posted[0]?.body ?? '{}')).toEqual({
+      results: [
+        { id: 'signin', title: 'Sign in', status: 'blocked', line: 'Harness unlocks at 80%.' },
+        { id: 'refund', title: 'Refund', status: 'blocked', line: 'Harness unlocks at 80%.' },
+      ],
+    });
+  });
+
+  it('tells a replay-only plan from one with anything to drive, branches included', () => {
+    const parsed = DriveScriptSchema.parse(saved);
+    expect(drivesNothing(parsed)).toBe(true);
+    const branched = DriveScriptSchema.parse({
+      ...saved,
+      journeys: [
+        {
+          id: 'signin',
+          title: 'Sign in',
+          steps: [
+            { kind: 'checkpoint', id: 'c', reenter: { flow: 'signin', to: 1 } },
+            {
+              kind: 'branch',
+              at: 'c',
+              cases: [
+                { label: 'a', steps: [{ kind: 'replay', flow: 'signin' }] },
+                { label: 'b', steps: [{ kind: 'act', goal: 'try a wrong password' }] },
+              ],
+            },
+          ],
+        },
+        saved.journeys[1],
+      ],
+    });
+    expect(drivesNothing(branched)).toBe(false);
   });
 });

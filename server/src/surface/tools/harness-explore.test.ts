@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReticleEnv, Verified } from '@reticlehq/core';
 import { driveRunsFrom } from '@/judgement/runs/drive-run.js';
 import type { ToolDeps } from './tools.js';
@@ -587,5 +587,72 @@ describe('what the explore tool says it needs', () => {
     expect(description).toContain(EXPLORE_NEEDS);
     expect(EXPLORE_NEEDS).toContain('reticle connect');
     expect(EXPLORE_NEEDS).not.toContain('API_KEY');
+  });
+});
+
+/**
+ * A saved plan run the platform refuses still reports against its plan, so the plan's history
+ * records the attempt; and a plan that only replays saved flows spends no model, so the gates that
+ * guard a model drive do not stop it.
+ */
+describe('a saved plan the platform refuses', () => {
+  const linked = { [ReticleEnv.API_KEY]: 'rk_live_x', [ReticleEnv.CLOUD_URL]: 'https://api.test' };
+  const locked = () =>
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            provider: 'jev',
+            harnessEnabled: true,
+            harnessUnlocked: false,
+            harnessLock: { reason: 'Harness unlocks at 80%.' },
+          }),
+        ),
+    });
+  const plan = (step: Record<string, unknown>) => ({
+    version: 1,
+    source: 'platform',
+    journeys: [{ id: 'signin', title: 'Sign in', steps: [step] }],
+    lanes: [{ id: 'A', journeys: ['signin'] }],
+  });
+  const platformWith = (script: unknown, posted: string[]) =>
+    vi.fn((_url: string, init: RequestInit) => {
+      if ('POST' === init.method) posted.push('string' === typeof init.body ? init.body : '');
+      return Promise.resolve(new Response(JSON.stringify({ planId: 'hp_1', script })));
+    });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reports every journey blocked, with the reason, to the plan', async () => {
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', platformWith(plan({ kind: 'act', goal: 'sign in' }), posted));
+    await expect(
+      exploreApp(depsWithFlows([]), linked, {
+        planId: 'hp_1',
+        driver: finishing(''),
+        configFetch: locked,
+      }),
+    ).rejects.toThrow('Harness unlocks at 80%.');
+    expect(posted.map((body) => JSON.parse(body) as unknown)).toEqual([
+      {
+        results: [
+          { id: 'signin', title: 'Sign in', status: 'blocked', line: 'Harness unlocks at 80%.' },
+        ],
+      },
+    ]);
+  });
+
+  it('is not refused by the lock when the plan only replays saved flows', async () => {
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', platformWith(plan({ kind: 'replay', flow: 'signin' }), posted));
+    const run = exploreApp(depsWithFlows([]), linked, {
+      planId: 'hp_1',
+      driver: finishing(''),
+      configFetch: locked,
+    });
+    await expect(run.catch((error: unknown) => String(error))).resolves.not.toContain(
+      'Harness unlocks at 80%.',
+    );
   });
 });

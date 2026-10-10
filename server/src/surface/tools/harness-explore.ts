@@ -38,7 +38,11 @@ import {
 import { buildHarnessPlan, planAsText, withoutReplays, type HarnessPlan } from './harness-plan.js';
 import { allSessionIntents } from '@/memory/intent/open-intents.js';
 import { fetchPlatformConfig, type ConfigFetch } from '@/features/harness/platform-config.js';
-import type { JourneyResult } from '@/features/harness/platform/script.js';
+import {
+  reportPlanBlocked,
+  savedPlanDrivesNothing,
+  type JourneyResult,
+} from '@/features/harness/platform/script.js';
 import {
   DEFAULT_MAX_STEPS,
   runHarness,
@@ -229,7 +233,24 @@ export function coverageRefusal(deps: ToolDeps, sessionId: string | undefined): 
   } catch {
     return undefined;
   }
-  const coverage = instrumentationOf(tab);
+  // Every tab of the app, the way the platform's merged report reads it, so the two name the same
+  // missing items.
+  const siblings = (deps.sessions.list?.() ?? [])
+    .filter((info) => info.sessionId !== tab.id && sameApp(info.projectId, tab.projectId))
+    .flatMap((info) => {
+      const live = deps.sessions.get?.(info.sessionId);
+      return live === undefined
+        ? []
+        : [
+            {
+              id: live.id,
+              url: live.url,
+              channels: live.channels,
+              sourceMapping: live.sourceMapping,
+            },
+          ];
+    });
+  const coverage = instrumentationOf(tab, siblings);
   const gate = coverage.harnessGate;
   if (gate.unlocked || gate.reason === undefined) return undefined;
   getSessionMetrics().recordHarnessRefused(gate.percent);
@@ -237,6 +258,10 @@ export function coverageRefusal(deps: ToolDeps, sessionId: string | undefined): 
     ? gate.reason
     : `${gate.reason}\n\n${MSG_GATE_PROMPT_LEAD}\n${coverage.prompt}`;
 }
+
+/** Two tabs are one app when both name the same project. A tab that names none stands alone. */
+const sameApp = (a: string | undefined, b: string | undefined): boolean =>
+  a !== undefined && a === b;
 
 /**
  * Can this machine reach the Harness? Only through the platform: a linked project or a platform
@@ -273,7 +298,7 @@ export async function exploreApp(
   env: Record<string, string | undefined>,
   options: ExploreOptions = {},
 ): Promise<ExploreResult> {
-  const refusal = await refusedByPlatform(env, options);
+  const refusal = await refusedForPlan(env, options);
   if (refusal !== undefined) throw new Error(refusal);
   // The flows a drive reads and diffs are the PROJECT's, which is where its saves land.
   const reads = withProjectFlows(deps, options.sessionId);
@@ -660,6 +685,27 @@ export async function refusedByPlatform(
   if (!config.harnessEntitled) return MSG_HARNESS_UNCLAIMED;
   return undefined;
 }
+
+/**
+ * `refusedByPlatform`, for a run that may be a saved plan. A plan that only replays saved flows
+ * spends no model turn, so a model drive's gates do not stop it; a refused plan is still reported to
+ * the plan, every journey blocked with the reason, so its history records the attempt.
+ */
+async function refusedForPlan(
+  env: Record<string, string | undefined>,
+  options: ExploreOptions,
+): Promise<string | undefined> {
+  const planId = options.planId;
+  const platform = serverOptionsFromEnv(env);
+  if (planId === undefined || platform === undefined) return refusedByPlatform(env, options);
+  if (await savedPlanDrivesNothing(platform, planId)) return undefined;
+  const refusal = await refusedByPlatform(env, options);
+  if (refusal !== undefined) await reportPlanBlocked(platform, planId, firstLine(refusal));
+  return refusal;
+}
+
+/** The sentence a refusal leads with, without the prompt that follows it. */
+export const firstLine = (text: string): string => text.split('\n')[0] ?? text;
 
 /**
  * Close and save whatever recording the drive left open.
