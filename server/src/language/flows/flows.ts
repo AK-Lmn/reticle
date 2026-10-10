@@ -172,6 +172,31 @@ function redactSecretFill(
 }
 
 /**
+ * The recorded steps as they may be SHOWN: every credential fill carries the placeholder.
+ *
+ * The same rule the saved flow is written by, applied to what a tool hands back. `record stop`
+ * returned the compiled program verbatim, so the password a saved flow never contained went into
+ * the agent's transcript instead. The store keeps the real value — an in-session replay types it.
+ */
+export function redactRecordedSteps(steps: readonly RecordedStep[]): RecordedStep[] {
+  return steps.map((step) => {
+    if (step.tool === ReticleTool.ACT_SEQUENCE && Array.isArray(step.args['steps'])) {
+      const subs = step.args['steps'].map((raw) => redactNormalizedArgs(asRecord(raw)));
+      return { ...step, args: { ...step.args, steps: subs } };
+    }
+    return { ...step, args: redactNormalizedArgs(step.args) };
+  });
+}
+
+/** One normalized act's args with its inner fill `args` redacted by the anchor it would save as. */
+function redactNormalizedArgs(normalized: Record<string, unknown>): Record<string, unknown> {
+  const inner = normalized['args'];
+  if ('object' !== typeof inner || null === inner) return normalized;
+  const redacted = redactSecretFill(anchorForStep(normalized).anchor, asRecord(inner));
+  return redacted === inner ? normalized : { ...normalized, args: redacted };
+}
+
+/**
  * What the anchor CALLS the field it points at.
  *
  * Every anchor kind names its target differently and all of them can name a password: a testid

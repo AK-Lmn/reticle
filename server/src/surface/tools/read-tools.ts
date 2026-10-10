@@ -21,6 +21,7 @@ import {
   routesFromRecording,
 } from '@/language/flows/recording/recording-backtrack.js';
 import { replayProgram } from '@/language/flows/replay.js';
+import { redactRecordedSteps } from '@/language/flows/flows.js';
 import { diffLines } from '@/memory/project/baselines.js';
 import { selectPath, capDepth, projectComponentState } from '@/portal/session/state-select.js';
 import { costHint } from '@/portal/session/output-budget.js';
@@ -294,7 +295,8 @@ export const READ_TOOLS: ToolDef[] = [
       );
       const body = {
         recordingName: name,
-        program,
+        // Redacted as the saved flow is; the store above keeps the real values for replay.
+        program: { ...program, steps: redactRecordedSteps(program.steps) },
         ...timeline,
         ...(0 === warning.length ? {} : { warning: warning.join(' ') }),
         ...(proposedConsequences.length > 0 ? { proposedConsequences } : {}),
