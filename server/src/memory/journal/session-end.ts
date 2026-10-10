@@ -16,7 +16,7 @@ const SESSION_END_LOG = {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 import { journalActionsPath, sessionDirPath } from '@/memory/project/dir/reticle-dir.js';
-import { asSessionId, type SessionId } from '@reticlehq/core';
+import { asRunId, asSessionId, type SessionId } from '@reticlehq/core';
 import {
   OnboardingPhase,
   OnboardingStepStatus,
@@ -332,11 +332,16 @@ export async function recordDriveRun(
     // on disk until a timer noticed — which, for the last session of the day, could be never.
     deps.onRunPersisted === undefined ? undefined : { onWrote: deps.onRunPersisted },
   );
+  const clock = deps.now ?? ((): number => Date.now());
   for (const input of inputs) {
+    // A reload rewrites this session's run under the same id; the first stamp is when it ran, and
+    // restamping on every rewrite showed the tab's close as the drive's time.
+    const held = await store.read(asRunId(input.runId));
+    const firstAt = held.ok ? held.run.createdAt : undefined;
     await store.write(
       buildVerificationRun(
         { ...input, ...(subject === undefined ? {} : { subject }) },
-        deps.now ?? ((): number => Date.now()),
+        firstAt === undefined ? clock : () => firstAt,
       ),
     );
   }

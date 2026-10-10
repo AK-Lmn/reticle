@@ -256,6 +256,20 @@ describe('the run a drive leaves behind', () => {
     return ReticleVerificationRunSchema.parse(JSON.parse(await fs.readFile(join(dir, file))));
   };
 
+  it('keeps the time the run was first written when a reload rewrites it', async () => {
+    // Every socket close rewrites the session's one run, and each rewrite stamped a new `createdAt`,
+    // so the dashboard showed the moment the tab closed as when the drive ran.
+    await makeSessionEnd({ fs, reticleRoot: root, enabled: true, now: () => 1_700_000 })(
+      driven([Verified.YES]),
+    );
+    await makeSessionEnd({ fs, reticleRoot: root, enabled: true, now: () => 9_900_000 })(
+      driven([Verified.YES, Verified.NO]),
+    );
+    const run = await runOnDisk();
+    expect(run.createdAt).toBe(1_700_000);
+    expect(run.checks).toHaveLength(2);
+  });
+
   it("names the subject in the protocol's terms, including a desktop shell", async () => {
     // The artifact recorded the project, the agent and the trigger, and never what KIND of thing
     // was on the other end -- a run against a Tauri app and one against a web page read the same.
