@@ -185,11 +185,8 @@ function replayDestructiveActionHint(rawError: string): string {
     `${rawError} — this is a flow REPLAY: a step's own args.confirmDangerous is stripped before ` +
     'dispatch and never persists, so editing the flow file does nothing. Pass it at the call level ' +
     `instead: ${ReticleTool.FLOW_REPLAY} { confirmDangerous: true } acknowledges every flagged step ` +
-    // `reticle_verify{action:"flows"}` (the batch suite runner) has no such argument today — naming
-    // it here would repeat the exact defect this message exists to fix, so the honest statement is
-    // that a flow with a flagged step currently has to be replayed on its own to pass it.
-    'for this run. The batch reticle_verify{action:"flows"} has no equivalent option yet, so a flow ' +
-    'with a flagged step has to be replayed on its own to acknowledge it.'
+    'for this run, as do reticle_verify{action:"flows", confirmDangerous: true} for a suite and ' +
+    '`reticle verify <url> --confirm-dangerous` from the command line.'
   );
 }
 

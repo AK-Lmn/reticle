@@ -411,6 +411,8 @@ interface LiveOpts {
   storageState?: string;
   /** Which connected tab to verify, when the app has more than one open on this port. */
   sessionId?: string;
+  /** `--confirm-dangerous`: acknowledge the replay guard's destructive steps for this run. */
+  confirmDangerous?: boolean;
 }
 
 /** Split a drive URL into its origin + whether it's loopback — decides token/injection pairing. */
@@ -459,7 +461,9 @@ async function openLiveConnection(opts: LiveOpts): Promise<VerifyConnection> {
   });
   const deps = buildVerifyDeps(running, opts.reticleRoot, opts.now);
   const harnessEnv = await withLinkedCredential(deps, process.env);
-  const runner = new ReticleRunner(createRunnerPort(deps, opts.sessionId));
+  const runner = new ReticleRunner(
+    createRunnerPort(deps, opts.sessionId, { confirmDangerous: true === opts.confirmDangerous }),
+  );
   return {
     sessionReady: (timeoutMs) => waitForSession(deps.sessions, timeoutMs, opts.now),
     listFlows: async (select) =>
@@ -681,6 +685,8 @@ export function handleVerify(parsed: {
   port: number;
   /** Write the per-journey verdicts here as JSON, for a CI step to post. */
   resultsJson?: string;
+  /** Acknowledge the replay guard's destructive steps ("Place order") for this run only. */
+  confirmDangerous?: boolean;
 }): void {
   const now = (): number => Date.now();
   /*
@@ -724,6 +730,7 @@ export function handleVerify(parsed: {
         port: parsed.port ?? RETICLE_DEFAULT_PORT,
         ...(parsed.storageState !== undefined ? { storageState: parsed.storageState } : {}),
         ...(parsed.sessionId !== undefined ? { sessionId: parsed.sessionId } : {}),
+        ...(true === parsed.confirmDangerous ? { confirmDangerous: true } : {}),
       }),
     out: (line) => process.stdout.write(`${line}\n`),
     fail: (line) => process.stderr.write(`${line}\n`),
@@ -785,6 +792,7 @@ export function handleVerify(parsed: {
       case VerifyRoute.ADHOC_SUITE: {
         const suite = await runAdhocSuite({
           port,
+          ...(true === parsed.confirmDangerous ? { confirmDangerous: true } : {}),
           ...(parsed.select === undefined ? {} : { select: parsed.select }),
           ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),
           ...((t: string | undefined) => (t === undefined || 0 === t.length ? {} : { token: t }))(

@@ -295,6 +295,7 @@ export type CliResult =
       persona?: string;
       select?: string[];
       resultsJson?: string;
+      confirmDangerous?: boolean;
     }
   | { kind: 'affected'; files: string[]; since?: string }
   | { kind: 'gate'; files: string[]; since?: string; hook?: boolean; acceptCoverage?: boolean }
@@ -826,6 +827,7 @@ export function parseCliArgs(
         ...(r.persona !== undefined ? { persona: r.persona } : {}),
         ...(r.select !== undefined ? { select: r.select } : {}),
         ...(r.resultsJson !== undefined ? { resultsJson: r.resultsJson } : {}),
+        ...(true === r.confirmDangerous ? { confirmDangerous: true } : {}),
       };
     }
     case AFFECTED_COMMAND: {

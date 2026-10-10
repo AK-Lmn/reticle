@@ -34,6 +34,8 @@ export interface AdhocSuiteOptions {
   select?: string[];
   /** Which connected tab to drive. Omitted means "whatever is connected". */
   sessionId?: string;
+  /** Acknowledge the replay guard's destructive steps for this run only. */
+  confirmDangerous?: boolean;
   token?: string;
   /** Injected so a test does not need a live daemon. */
   connect?: (endpoint: URL) => Promise<ToolCaller>;
@@ -96,7 +98,7 @@ export async function runAdhocSuite(options: AdhocSuiteOptions): Promise<AdhocVe
 /** The saved suite through an open connection, as a verdict. Shared by the suite and explore paths. */
 async function replaySuite(
   caller: ToolCaller,
-  options: { select?: string[]; sessionId?: string },
+  options: { select?: string[]; sessionId?: string; confirmDangerous?: boolean },
 ): Promise<AdhocVerdict> {
   // Spread rather than set: an explicit `undefined` is a key the tools reject as an unknown
   // parameter, which would turn "no tab named" into a refusal. Same rule as the one-shot path.
@@ -106,6 +108,7 @@ async function replaySuite(
       action: 'flows',
       ...(options.select === undefined ? {} : { select: options.select }),
       ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+      ...(true === options.confirmDangerous ? { confirmDangerous: true } : {}),
     },
     SUITE_TIMEOUT_MS,
   );

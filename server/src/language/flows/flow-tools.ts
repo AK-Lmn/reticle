@@ -1,6 +1,7 @@
 import { flowAuthor } from './flow-author.js';
 import { FLOW_MUTATE_TOOL } from './flow-mutate-tools.js';
-import { seedSchema } from '@/surface/tools/args/numeric-bounds.js';
+import { seedSchema, workerCountSchema } from '@/surface/tools/args/numeric-bounds.js';
+import { confirmDangerousArg } from '@/surface/tools/args/confirm-dangerous-arg.js';
 import { z } from 'zod';
 import { emptyFlowRefusal } from './empty-flow.js';
 import { aliasParam } from '@/surface/tools/args/alias-args.js';
@@ -16,7 +17,6 @@ import type { FlowFile } from '@reticlehq/core';
 import { recordSuiteFlakes } from './suite/suite-flakes.js';
 import { AppRuntime, ReticleTool } from '@reticlehq/core';
 import { asNumber, asString, mutationTargetsFor, perturbationFor } from '@reticlehq/core';
-import { workerCountSchema } from '@/surface/tools/args/numeric-bounds.js';
 import { log } from '@/log.js';
 import { cloudFetch, syncFlowToCloud, SyncOutcome } from '@/memory/cloud/cloud-sync.js';
 import { mapWithConcurrency, resolveConcurrency } from './suite/parallel-suite.js';
@@ -444,10 +444,7 @@ export const FLOW_TOOLS: ToolDef[] = [
       flowName: z
         .string()
         .describe('Flow file name (without .json extension) from reticle_flow{action:"list"}.'),
-      confirmDangerous: z
-        .boolean()
-        .optional()
-        .describe('Set true to allow destructive controls during this replay only.'),
+      confirmDangerous: confirmDangerousArg('this replay'),
       from: z
         .union([z.number().int().nonnegative(), z.string().min(1)])
         .optional()
@@ -617,6 +614,7 @@ export const FLOW_TOOLS: ToolDef[] = [
         .describe(
           'Run this many flows at once, each in its own isolated leased browser context (needs the browser pool). Clamped to the pool capacity and the flow count. Omit for the sequential single-tab run.',
         ),
+      confirmDangerous: confirmDangerousArg('this run of the suite'),
       sessionId: z
         .string()
         .optional()
@@ -691,6 +689,7 @@ export const FLOW_TOOLS: ToolDef[] = [
     },
     handler: async (deps: ToolDeps, args): Promise<SuiteVerdict> => {
       const sessionId = asString(args['sessionId']);
+      const confirmed = true === args['confirmDangerous'] ? { confirmDangerous: true } : {};
       // "Replay all" means all of THIS app's flows (+ legacy), not every project's on a shared daemon.
       const target = sessionTarget(deps, sessionId);
       const { projectId } = target;
@@ -755,7 +754,11 @@ export const FLOW_TOOLS: ToolDef[] = [
           const start = deps.now();
           const lease = await acquireLeasedSession(pool, deps.sessions, appUrl, projectId, seed);
           try {
-            const replay = await replayAndLearn(deps, { flowName, sessionId: lease.sessionId });
+            const replay = await replayAndLearn(deps, {
+              flowName,
+              sessionId: lease.sessionId,
+              ...confirmed,
+            });
             return { replay, durationMs: deps.now() - start };
           } finally {
             await lease.release().catch(() => undefined);
@@ -805,7 +808,7 @@ export const FLOW_TOOLS: ToolDef[] = [
       // (1 of 2 flows). Restoring two thirds of a session is worse than restoring none.
       for (const flowName of requested) {
         const start = deps.now();
-        const replay = await replayAndLearn(deps, { flowName, sessionId });
+        const replay = await replayAndLearn(deps, { flowName, sessionId, ...confirmed });
         const loaded = await flowsForSession(deps, target)
           .flows.load(flowName, projectId)
           .catch(() => null);
@@ -934,10 +937,7 @@ export const FLOW_TOOLS: ToolDef[] = [
         .describe('Alias for `flowName` (the name reticle_annotate uses).'),
       flowName: z.string().describe('Flow file name to heal (from reticle_flow{action:"list"}).'),
       apply: z.boolean().optional(),
-      confirmDangerous: z
-        .boolean()
-        .optional()
-        .describe('Set true to allow destructive controls during this heal replay only.'),
+      confirmDangerous: confirmDangerousArg('this heal replay'),
       sessionId: z
         .string()
         .optional()

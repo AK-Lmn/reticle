@@ -48,6 +48,8 @@ const PERSONA_FLAG = '--persona';
 const SELECT_FLAG = '--select';
 /** Write the per-journey verdicts to this file as JSON, for a CI step that posts them. */
 const RESULTS_JSON_FLAG = '--results-json';
+/** Acknowledge, for this run only, the steps the replay guard holds as destructive ("Place order"). */
+const CONFIRM_DANGEROUS_FLAG = '--confirm-dangerous';
 
 export type VerifySuffix =
   | {
@@ -65,6 +67,7 @@ export type VerifySuffix =
       persona?: string;
       select?: string[];
       resultsJson?: string;
+      confirmDangerous?: boolean;
     }
   | { kind: 'error'; message: string };
 
@@ -132,6 +135,7 @@ export function parseVerifySuffix(args: string[], defaultPort: number): VerifySu
   let persona: string | undefined;
   const select: string[] = [];
   let resultsJson: string | undefined;
+  let confirmDangerous = false;
   let port = defaultPort;
   let i = 0;
   while (i < args.length) {
@@ -177,6 +181,8 @@ export function parseVerifySuffix(args: string[], defaultPort: number): VerifySu
       resultsJson = v;
     } else if (arg === EXPLORE_FLAG) {
       explore = true;
+    } else if (arg === CONFIRM_DANGEROUS_FLAG) {
+      confirmDangerous = true;
     } else if (arg === PERSONA_FLAG) {
       i++;
       const v = args[i];
@@ -235,5 +241,6 @@ export function parseVerifySuffix(args: string[], defaultPort: number): VerifySu
     ...(persona !== undefined ? { persona } : {}),
     ...(select.length > 0 ? { select } : {}),
     ...(resultsJson !== undefined ? { resultsJson } : {}),
+    ...(confirmDangerous ? { confirmDangerous } : {}),
   };
 }
