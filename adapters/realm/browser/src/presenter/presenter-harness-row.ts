@@ -59,6 +59,8 @@ export const HARNESS_ROW_TEXT = {
   FOOT_NO_PROVIDER: 'No model provider',
   footSetup: (percent: number): string => `Setup ${String(percent)}% · needs 80%`,
   PAGE_TITLE: 'Reticle Harness',
+  LOG_LABEL: 'What the Harness did',
+  LOG_EMPTY: 'Runs show here, step by step.',
   PAGE_SUBTITLE: 'Tests your app by itself',
 } as const;
 
@@ -68,6 +70,8 @@ export const HARNESS_SWITCH_ON_ATTR = 'data-reticle-harness-switch';
 export const HARNESS_LINK_ATTR = 'data-reticle-harness-link';
 /** The foot row's button: opens the Harness page. */
 export const HARNESS_OPEN_ATTR = 'data-reticle-harness-open';
+/** The Harness page's own log: every row the Harness drove or said, and nothing the agent did. */
+export const HARNESS_LOG_ATTR = 'data-reticle-harness-log';
 /** The foot row's on/off switch: the same write-through as Settings and the dashboard. */
 export const HARNESS_TOGGLE_ATTR = 'data-reticle-harness-toggle';
 /** Copies the prompt that closes the coverage gate. */
@@ -199,7 +203,12 @@ function switchable(s: HarnessRowState): boolean {
  */
 export function harnessFootHtml(s: HarnessRowState): string {
   if (s.account === undefined) return '';
-  if (!s.account.signedIn || (s.drive !== undefined && s.canDrive)) return harnessRowHtml(s);
+  if (!s.account.signedIn) return harnessRowHtml(s);
+  // A run in progress: its steps open the Harness page, where the run is shown; Stop stays here.
+  if (s.drive !== undefined && s.canDrive)
+    return row(
+      `<button type="button" ${HARNESS_OPEN_ATTR} class="reticle-harness-open"><span class="reticle-harness-name">${HARNESS_ROW_TEXT.NAME}</span><span class="reticle-harness-state">${esc(HARNESS_ROW_TEXT.driving(s.startedAs === undefined ? undefined : personaLabel(s.startedAs), s.drive.steps))}</span><span class="reticle-harness-chev" aria-hidden="true">›</span></button><button type="button" data-reticle-harness-stop class="reticle-harness-run reticle-harness-stop">${HARNESS_ROW_TEXT.STOP}</button>`,
+    );
   const on = true === s.config?.harnessEnabled;
   const credits = s.config?.credits;
   const title = credits === undefined ? '' : ` title="${esc(creditsUsageText(credits))}"`;

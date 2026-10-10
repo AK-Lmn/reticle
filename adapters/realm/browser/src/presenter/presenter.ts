@@ -8,6 +8,7 @@ import {
   SessionState,
   isPresenterTone,
   isSessionState,
+  type HarnessDrive,
   type PresenterTone,
 } from '@reticlehq/core';
 import { refs } from '@/dom/addressing/refs.js';
@@ -17,6 +18,7 @@ import { nativeSetTimeout, nativeClearTimeout, nativeNow } from '@/timers/native
 import {
   LOG_KIND,
   CHIP_LABEL,
+  LOG_ACTOR,
   DATA_RETICLE_LOG,
   clampLogMax,
   formatElapsed,
@@ -31,7 +33,7 @@ import {
 } from './chrome/presenter-log.js';
 import { PRESENTER_CSS } from './presenter-styles.js';
 import { HudShell } from './presenter-shell.js';
-import { harnessGateIn } from './presenter-harness-row.js';
+import { HARNESS_LOG_ATTR, harnessGateIn } from './presenter-harness-row.js';
 import { parseImpactSnapshot } from './chrome/presenter-report-copy.js';
 import { scheduleSyncDockLayout } from './presenter-dock-layout.js';
 import {
@@ -155,6 +157,12 @@ export class Presenter {
   // v2: narration + action status accumulate in a persistent, timestamped, scrollable log.
   #logMax: number;
   #log: HTMLElement | undefined;
+  /** The Harness page's own log: every row the Harness drove or said. */
+  #harnessLog: HTMLElement | undefined;
+  /** The Harness run the HUD last saw, so a new one starts on a clean Harness log. */
+  #harnessRunId: string | undefined;
+  /** Steps of the Harness run driving now, so the header says the Harness is testing. */
+  #harnessSteps: number | undefined;
   #plan = new PlanBoard();
   /** The rows on screen, as they are kept across a reload. */
   #remembered: RememberedRow[] = [];
@@ -282,6 +290,7 @@ export class Presenter {
           harnessGateIn(snapshot.instrumentation, snapshot.harnessConfig),
         );
         this.#shell.paintHarnessDrive(snapshot.harnessDrive);
+        this.#paintHarnessRun(snapshot.harnessDrive);
         this.#shell.paintAgent(snapshot.agent);
         this.#shell.paintImpact(snapshot.project.counts.verdicts);
         const owner = true === snapshot.account?.signedIn ? snapshot.account.email : undefined;
@@ -340,6 +349,7 @@ export class Presenter {
     this.#chatPillTime =
       root.querySelector<HTMLElement>('[data-reticle-chat-pill-time]') ?? undefined;
     this.#log = root.querySelector<HTMLElement>(`[${DATA_RETICLE_LOG}]`) ?? undefined;
+    this.#harnessLog = root.querySelector<HTMLElement>(`[${HARNESS_LOG_ATTR}]`) ?? undefined;
     this.#chip = root.querySelector<HTMLElement>('[data-reticle-chip]') ?? undefined;
     this.#tally = root.querySelector<HTMLElement>('[data-reticle-tally]') ?? undefined;
     this.#shell.mount(root);
@@ -357,11 +367,12 @@ export class Presenter {
   }
   /** Repaint the rows this tab showed before the page reloaded. */
   #restoreLog(): void {
-    const log = this.#log;
-    if (log === undefined || 0 < this.#remembered.length) return;
+    if (this.#log === undefined || 0 < this.#remembered.length) return;
     for (const row of readRememberedLog().slice(-this.#logMax)) {
-      const handle = appendLogRow(log, row.kind, row.text, row.ts, this.#logMax, row.actor);
-      if (row.result !== undefined) handle.result(row.result);
+      for (const log of this.#logsFor(row.actor, true === row.summary)) {
+        const handle = appendLogRow(log, row.kind, row.text, row.ts, this.#logMax, row.actor);
+        if (row.result !== undefined) handle.result(row.result);
+      }
       this.#logBaseMs = this.#now() - row.at;
       this.#runLog.push({
         at: row.at,
@@ -436,6 +447,7 @@ export class Presenter {
     this.#sessionActive = false;
     this.#logBaseMs = undefined;
     this.#log = undefined;
+    this.#harnessLog = undefined;
     // Taken down on purpose (disconnect, or the agent removed the HUD), not by a reload: start clean.
     this.#remembered = [];
     rememberLog([]);
@@ -595,7 +607,24 @@ export class Presenter {
    * status COLOUR resolves against: the page glow, the collapsed FAB's halo and the minimised
    * capsule all live outside the strip and still have to say whether the agent is working.
    */
-  #paintActStrip(text: string, idle: boolean): void {
+  /**
+   * A Harness run on this tab: a new one starts on a clean Harness log, and while it drives the
+   * header says so on every page, whatever page the person is reading.
+   */
+  #paintHarnessRun(drive: HarnessDrive | undefined): void {
+    if (drive !== undefined && drive.runId !== this.#harnessRunId) {
+      this.#harnessRunId = drive.runId;
+      if (this.#harnessLog !== undefined) clearLogRows(this.#harnessLog);
+    }
+    const was = this.#harnessSteps;
+    this.#harnessSteps = drive?.steps;
+    if (drive !== undefined) this.#paintActStrip(this.#lastActionText, false);
+    else if (was !== undefined) this.#paintActStrip(ACT_STRIP.READY, true);
+  }
+  #paintActStrip(raw: string, idle: boolean): void {
+    // While the Harness drives, the header names it: "Testing · Harness · 7 steps".
+    const text =
+      this.#harnessSteps === undefined ? raw : ACT_STRIP.harnessTesting(this.#harnessSteps);
     if (this.#actLine !== undefined) {
       this.#actLine.textContent = text;
       this.#actLine.removeAttribute('title');
@@ -649,6 +678,8 @@ export class Presenter {
      * on nothing else, so "still empty" means no action has ever been painted in this session.
      */
     if ('' === this.#lastActionText) return;
+    // The Harness is the one driving: "planning next action" would describe an agent that is waiting.
+    if (this.#harnessSteps !== undefined) return;
     const since = ACT_STRIP.SINCE_LAST;
     // Alive and between actions — NOT idle. The session is still running and the next action is
     // being decided; `#endIdle` below is the only path that says nothing more is coming.
@@ -752,6 +783,7 @@ export class Presenter {
     rememberLog([]);
     this.#tallied = { passes: 0, fails: 0 };
     if (this.#log !== undefined) clearLogRows(this.#log);
+    if (this.#harnessLog !== undefined) clearLogRows(this.#harnessLog);
     this.#renderTally();
   }
   #applyHideUntilRestart(): void {
@@ -774,7 +806,25 @@ export class Presenter {
    * with a mode chip + text. Returns a handle to stamp the row's outcome glyph (✓/✗) later, or
    * undefined when unmounted / when the text is empty after trimming.
    */
-  log(kind: LogKind, text: string, result?: LogResult, actor?: LogActor): LogHandle | undefined {
+  /**
+   * Where a row goes. The agent's rows to the Agent Log; the Harness's to the Harness page's log, so
+   * two drivers never share one; a Harness summary (a run starting or ending) to both, because the
+   * agent that asked for the run reports its result.
+   */
+  #logsFor(actor: LogActor | undefined, summary: boolean): HTMLElement[] {
+    const agent = this.#log;
+    const harness = this.#harnessLog;
+    if (LOG_ACTOR.HARNESS !== actor || harness === undefined)
+      return agent === undefined ? [] : [agent];
+    return summary && agent !== undefined ? [agent, harness] : [harness];
+  }
+  log(
+    kind: LogKind,
+    text: string,
+    result?: LogResult,
+    actor?: LogActor,
+    summary = false,
+  ): LogHandle | undefined {
     const ms = this.#now();
     this.#glowCtl.markActivity(ms);
     if (this.#log === undefined) return undefined;
@@ -789,7 +839,10 @@ export class Presenter {
     this.#runLog.push(entry);
     while (this.#runLog.length > this.#logMax) this.#runLog.shift();
     const ts = formatElapsed(ms - this.#logBaseMs);
-    const handle = appendLogRow(this.#log, kind, trimmed, ts, this.#logMax, actor);
+    const handles = this.#logsFor(actor, summary).map((log) =>
+      appendLogRow(log, kind, trimmed, ts, this.#logMax, actor),
+    );
+    const handle: LogHandle = { result: (r: LogResult) => handles.forEach((h) => h.result(r)) };
     if (result !== undefined) handle.result(result);
     const kept: RememberedRow = {
       kind,
@@ -797,6 +850,7 @@ export class Presenter {
       ts,
       at: ms - this.#logBaseMs,
       ...(actor === undefined ? {} : { actor }),
+      ...(summary ? { summary: true as const } : {}),
       ...(result === undefined ? {} : { result }),
     };
     this.#remembered.push(kept);
@@ -824,13 +878,19 @@ export class Presenter {
     this.#tallied = renderTally(this.#tally, this.#runLog, this.#tallied);
   }
   /** Back-compat: narration appends to the live log (append-only, never overwrites). */
-  narrate(text: string, level = 'info'): LogHandle | undefined {
+  narrate(
+    text: string,
+    level = 'info',
+    actor: LogActor = LOG_ACTOR.AGENT,
+    summary = false,
+  ): LogHandle | undefined {
     const line = 'info' === level ? text : `[${level}] ${text}`;
-    return this.log(LOG_KIND.NARRATION, line);
+    return this.log(LOG_KIND.NARRATION, line, undefined, actor, summary);
   }
   #pruneLog(): void {
     if (this.#log === undefined) return;
     trimLogRows(this.#log, this.#logMax);
+    if (this.#harnessLog !== undefined) trimLogRows(this.#harnessLog, this.#logMax);
   }
   /**
    * Mirror the server's session.throttled state onto the HUD border. When throttled (tab

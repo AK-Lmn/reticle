@@ -6,7 +6,7 @@
  * filled, and clearing with `replaceChildren` would wipe it on every new run.
  */
 import { describe, expect, it } from 'vitest';
-import { LOG_CSS, LOG_EMPTY_TEXT, LOG_KIND } from './presenter-log.js';
+import { LOG_ACTOR, LOG_CSS, LOG_EMPTY_TEXT, LOG_KIND } from './presenter-log.js';
 import { appendLogRow, clearLogRows, trimLogRows } from './presenter-log.js';
 
 function logWithPinned(): { log: HTMLElement; pinned: HTMLElement } {
@@ -56,5 +56,16 @@ describe('the empty log', () => {
     expect(LOG_EMPTY_TEXT.BODY).toContain('Ask your coding agent');
     expect(LOG_EMPTY_TEXT.BODY).toContain('Harness');
     expect(LOG_CSS).not.toContain('Agent activity will appear here');
+  });
+
+  it('the same read again, by the same driver, is one row that counts', () => {
+    const log = document.createElement('div');
+    for (let i = 0; i < 3; i += 1) appendLogRow(log, LOG_KIND.READ, 'Finding "Save"', '+0s', 10);
+    appendLogRow(log, LOG_KIND.READ, 'Finding "Save"', '+0s', 10, LOG_ACTOR.HARNESS);
+    appendLogRow(log, LOG_KIND.READ, 'Finding "Cancel"', '+0s', 10, LOG_ACTOR.HARNESS);
+    const rows = log.querySelectorAll('[data-reticle-log-row][data-kind="read"]');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.querySelector('.reticle-log-repeat')?.textContent).toBe('×3');
+    expect(rows[1]?.querySelector('.reticle-log-repeat')).toBeNull();
   });
 });

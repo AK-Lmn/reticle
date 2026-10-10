@@ -220,7 +220,7 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // declared beside it rather than inside it, as `query-hint-schema.ts` is beside tools.ts.
   // 47 with `lease-readiness.ts`: the checks a lease runs before it may say `ready: true` (does
   // the tab answer, is it visible), moved out of lease-tools.ts for the same line-cap reason.
-  'server/src/surface/tools': 49,
+  'server/src/surface/tools': 50,
   // Crossed the line when a planned step gained its own `expect`: the grading rule and its test
   // joined the act cluster (preflight, target, retry, capsule). Recorded rather than grouped,
   // because this directory IS the grouping -- these files were split out of act-tools.ts when it
@@ -262,7 +262,7 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // to read daemon state and port holders -- every other home needed two new reaches for it.
   // 25 with `command-payload.ts`: the command's wire JSON, moved out of `session.ts` (at its cap)
   // when it gained the mark that says the Harness sent it.
-  'server/src/portal/session': 27,
+  'server/src/portal/session': 28,
   // 32 since two leaves were extracted out of `flow-replay.ts` to break the last runtime cycle in
   // this directory: `flow-replay-types.ts` (shapes two collaborators share) and `flow-anchor.ts`
   // (resolving a step's anchor). Breaking a cycle costs files — a module that sits UNDER two others

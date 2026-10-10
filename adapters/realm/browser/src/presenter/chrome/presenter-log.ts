@@ -51,7 +51,8 @@ const HANDOVER_TEXT: Record<LogActor, string> = {
   harness: 'Reticle Harness is driving',
 };
 /** On the log itself: who drove the last row, so the next one knows whether a handover happened. */
-const LAST_ACTOR_ATTR = 'data-reticle-log-actor';
+/** Who drove last in this log, so a change of driver draws a handover line. */
+export const LAST_ACTOR_ATTR = 'data-reticle-log-actor';
 const DATA_ACTOR = 'data-actor';
 const DATA_STATE = 'data-state';
 const HANDOVER_KIND = 'handover';
@@ -68,6 +69,9 @@ const DATA_RETICLE_LOG_ROW = 'data-reticle-log-row';
 export const LOG_TIME_ATTR = 'data-reticle-log-time';
 const DATA_KIND = 'data-kind';
 const LOG_TEXT_CLASS = 'reticle-log-text';
+/** How many times one read was polled in a row, on the one row that stands for them. */
+const REPEAT_ATTR = 'data-reticle-repeat';
+const LOG_REPEAT_CLASS = 'reticle-log-repeat';
 const LOG_RES_CLASS = 'reticle-res';
 const LOG_CHIP_CLASS = 'reticle-chip';
 
@@ -123,6 +127,7 @@ export const LOG_CSS = `
 [data-reticle-log] [data-reticle-log-row][data-kind="read"] .reticle-chip{opacity:.5;}
 [${LOG_TIME_ATTR}]{flex:none;color:var(--reticle-faint);font-size:11px;font-variant-numeric:tabular-nums;padding-top:2px;min-width:2em;opacity:.85;}
 [data-reticle-log] .reticle-log-text{flex:1;min-width:0;color:var(--reticle-muted);overflow-wrap:anywhere;word-break:break-word;}
+[data-reticle-log] .reticle-log-repeat{flex:none;color:var(--reticle-muted);font-variant-numeric:tabular-nums;opacity:.7;}
 [data-reticle-log] .reticle-res{flex:none;font-size:7.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--reticle-bad);opacity:.75;padding-top:2px;}
 [data-reticle-log] .reticle-res.reticle-pass{display:none;}
 [data-reticle-log-row][data-kind="human"]{align-self:flex-end;max-width:78%;margin:6px 0 2px;
@@ -253,6 +258,24 @@ export function appendLogRow(
   logMax: number,
   actor: LogActor = LOG_ACTOR.AGENT,
 ): LogHandle {
+  // A wait polls the page, and every poll was its own row: one "Finding" twenty times buried the
+  // log. The same read again, by the same driver, is one row that counts.
+  const repeated = kind === LOG_KIND.READ ? sameReadAsLast(container, text, actor) : undefined;
+  if (repeated !== undefined) {
+    const times = Number(repeated.getAttribute(REPEAT_ATTR) ?? '1') + 1;
+    repeated.setAttribute(REPEAT_ATTR, String(times));
+    let count = repeated.querySelector<HTMLElement>(`.${LOG_REPEAT_CLASS}`);
+    if (null === count) {
+      count = document.createElement('span');
+      count.className = LOG_REPEAT_CLASS;
+      repeated.querySelector(`.${LOG_TEXT_CLASS}`)?.after(count);
+    }
+    count.textContent = `×${String(times)}`;
+    const time = repeated.querySelector(`[${LOG_TIME_ATTR}]`);
+    if (null !== time) time.textContent = ts;
+    const res = repeated.querySelector<HTMLElement>(`.${LOG_RES_CLASS}`);
+    return null === res ? { result: () => undefined } : rowHandle(repeated, res);
+  }
   // A handover is shown where it happens, so a person watching sees the Harness take the wheel.
   const driven = kind === LOG_KIND.ACT || kind === LOG_KIND.READ;
   if (driven && (container.getAttribute(LAST_ACTOR_ATTR) ?? LOG_ACTOR.AGENT) !== actor) {
@@ -313,6 +336,24 @@ export function appendLogRow(
     scrollLogToLatest(container);
   });
 
+  return rowHandle(row, resEl);
+}
+
+/** The last row, when it is this same read by this same driver. */
+function sameReadAsLast(
+  container: HTMLElement,
+  text: string,
+  actor: LogActor,
+): HTMLElement | undefined {
+  const last = container.lastElementChild;
+  if (!(last instanceof HTMLElement) || !last.hasAttribute(DATA_RETICLE_LOG_ROW)) return undefined;
+  if (last.getAttribute(DATA_KIND) !== LOG_KIND.READ || last.getAttribute(DATA_ACTOR) !== actor)
+    return undefined;
+  return last.querySelector(`.${LOG_TEXT_CLASS}`)?.textContent === text ? last : undefined;
+}
+
+/** The outcome stamp for one row. */
+function rowHandle(row: HTMLElement, resEl: HTMLElement): LogHandle {
   return {
     result: (r: LogResult): void => {
       row.setAttribute(DATA_STATE, r);

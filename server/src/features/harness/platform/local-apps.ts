@@ -183,7 +183,15 @@ export async function appsByPlatform(
     if (undefined === about?.platform) continue;
     const key = appKeyOf(machineId, about.dir, tab.projectId);
     const apps = group(about.platform).apps;
-    if (apps.has(key)) continue;
+    // Of two tabs of one app, the one that has seen the most speaks for it: a fresh tab opened beside
+    // a driven one reported first and dropped the setup score, locking the Harness. A tie keeps the
+    // earlier tab, so a visible one still speaks over a hidden one.
+    const held = apps.get(key);
+    if (
+      held !== undefined &&
+      (tab.channels?.length ?? 0) <= (held[LinkReportKey.CHANNELS]?.length ?? 0)
+    )
+      continue;
     const stack = [
       ...new Set([...tab.adapters, ...(tab.runtime === undefined ? [] : [tab.runtime])]),
     ].filter((part) => WEB_RUNTIME !== part);

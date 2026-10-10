@@ -20,9 +20,11 @@ import {
   PresenterIcon,
 } from './icons/presenter-icons.js';
 import { HUD_GLASS_PAINT } from './chrome/presenter-hud-chrome.js';
+import { LAST_ACTOR_ATTR, LOG_ACTOR } from './chrome/presenter-log.js';
 import {
   HARNESS_COPY_PROMPT_ATTR,
   HARNESS_LINK_ATTR,
+  HARNESS_LOG_ATTR,
   HARNESS_OPEN_ATTR,
   HARNESS_ROW_TEXT,
   HARNESS_SWITCH_ON_ATTR,
@@ -155,6 +157,7 @@ const NOTES_TEXT = {
 export const HARNESS_PAGE_HTML: string = `<section data-reticle-page-panel="harness" class="reticle-page-panel reticle-harness-page" role="region" aria-label="${HARNESS_ROW_TEXT.PAGE_TITLE}" hidden>
   <div class="reticle-page-heading"><span class="reticle-page-titles"><strong>${HARNESS_ROW_TEXT.PAGE_TITLE}</strong><span class="reticle-page-subtitle">${HARNESS_ROW_TEXT.PAGE_SUBTITLE}</span></span><button type="button" data-reticle-page-close aria-label="Close ${HARNESS_ROW_TEXT.PAGE_TITLE}" title="Close">×</button></div>
   <div data-reticle-harness-page class="reticle-harness-body"></div>
+  <div ${HARNESS_LOG_ATTR} ${LAST_ACTOR_ATTR}="${LOG_ACTOR.HARNESS}" class="reticle-harness-log" aria-live="polite" aria-label="${HARNESS_ROW_TEXT.LOG_LABEL}"></div>
   <p data-reticle-harness-page-meta class="reticle-foot-meta"></p>
 </section>`;
 
@@ -174,14 +177,16 @@ export const ANNOTATIONS_HTML = `<section data-reticle-page-panel="annotations" 
 export const CHAT_VIEWS_CSS = `
 ${HARNESS_ROW_CSS}
 ${HARNESS_ROW_CSS.replaceAll('[data-reticle-chat-panel]', '[data-reticle-page-panel="harness"]')}
-[data-reticle-page-panel="harness"] .reticle-harness-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:var(--reticle-hud-space-2);padding:var(--reticle-hud-space-3);}
+[data-reticle-page-panel="harness"] .reticle-harness-body{flex:none;display:flex;flex-direction:column;gap:var(--reticle-hud-space-2);padding:var(--reticle-hud-space-3);}
+/* The run as it happens, then its result: the Harness's rows only, scrolling under the controls. */
+[data-reticle-page-panel="harness"] .reticle-harness-log{flex:1;min-height:0;overflow-y:auto;padding:0 var(--reticle-hud-space-3) var(--reticle-hud-space-2);}
+[data-reticle-page-panel="harness"] .reticle-harness-log:empty::before{content:"${HARNESS_ROW_TEXT.LOG_EMPTY}";display:block;padding:var(--reticle-hud-space-2) 0;color:var(--reticle-hud-text-faint);font-size:11px;}
 [data-reticle-page-panel="harness"] .reticle-foot-meta{flex:none;padding:0 var(--reticle-hud-space-3) var(--reticle-hud-space-3);}
 [data-reticle-page-open="harness"] [data-reticle-page-panel="harness"]{display:flex;}
 [data-reticle-page-open="harness"] [data-reticle-chat-panel]{display:none!important;}
 [data-reticle-hud] .reticle-chat-nav{display:contents;}
 [data-reticle-hud] .reticle-chat-nav button{position:relative;width:var(--reticle-hud-control-size);height:var(--reticle-hud-control-size);justify-self:center;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--reticle-hud-radius-md);padding:0;background:transparent;color:var(--reticle-hud-text-muted);cursor:pointer;}
 [data-reticle-hud] .reticle-chat-nav button:hover{background:var(--reticle-hud-hover);color:var(--reticle-hud-text);}
-[data-reticle-hud] .reticle-chat-nav button[data-capture="1"]{color:var(--reticle-accent);box-shadow:inset 0 -2px var(--reticle-accent);}
 [data-reticle-hud] .reticle-chat-nav button[aria-current="page"],[data-reticle-hud] .reticle-chat-nav button[data-active="1"]{background:transparent;color:var(--reticle-hud-text);}
 /* The page you are on: a short straight bar under its name, nothing louder. */
 [data-reticle-hud] .reticle-toolbar-chrome :is(.reticle-chat-nav button[aria-current="page"],.reticle-chat-nav button[data-active="1"],.reticle-tb-btn[data-active="1"])::after{content:"";position:absolute;left:50%;bottom:1px;width:16px;height:2px;border-radius:1px;transform:translateX(-50%);background:currentColor;}

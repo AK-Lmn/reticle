@@ -63,7 +63,7 @@ import type {
   ControlIntent,
 } from './presenter/presenter.js';
 // Values, from a leaf file that pulls nothing in behind it. See log-kinds.ts.
-import { LOG_ACTOR, LOG_KIND, LOG_RESULT } from './presenter/chrome/log-kinds.js';
+import { LOG_ACTOR, LOG_KIND, LOG_RESULT, type LogActor } from './presenter/chrome/log-kinds.js';
 import { actionVerb } from './presenter/chrome/presenter-verbs.js';
 import { str, refLabel, modeForCommand, presentStatus } from './reticle-presenter-helpers.js';
 import { resetClock } from './timers/clock.js';
@@ -302,7 +302,12 @@ export class Reticle {
    * behind) the instant it connects, while the panel is still being fetched; dropped, that notice
    * only ever appeared mirrored from another tab, under a raw session id.
    */
-  readonly #pendingNarrations: { text: string; level: string }[] = [];
+  readonly #pendingNarrations: {
+    text: string;
+    level: string;
+    actor: LogActor;
+    summary: boolean;
+  }[] = [];
   /** The HUD asked for (by the page's address, or a command) before the panel mounted. */
   #pendingHud: HudVisibility | undefined;
   /**
@@ -588,7 +593,7 @@ export class Reticle {
         this.#pendingPushes.clear();
         if (0 < this.#pendingNarrations.length) panel.sessionStart();
         for (const early of this.#pendingNarrations.splice(0))
-          panel.narrate(early.text, early.level);
+          panel.narrate(early.text, early.level, early.actor, early.summary);
         if (this.#pendingHud !== undefined) panel.placeHud(this.#pendingHud, undefined);
         this.#pendingHud = undefined;
         /*
@@ -810,11 +815,18 @@ export class Reticle {
           this.#pendingNarrations.push({
             text: str(command.args['text']),
             level: str(command.args['level'], 'info'),
+            actor: narrationActor(command.args),
+            summary: true === command.args['summary'],
           });
         return { ok: true, result: { shown: false, buffered: true } };
       }
       this.#presenter?.sessionStart(); // first agent activity → reveal the glow + panel
-      this.#presenter?.narrate(str(command.args['text']), str(command.args['level'], 'info'));
+      this.#presenter?.narrate(
+        str(command.args['text']),
+        str(command.args['level'], 'info'),
+        narrationActor(command.args),
+        true === command.args['summary'],
+      );
       return { ok: true, result: { shown: this.#presenter !== undefined } };
     }
 
@@ -923,6 +935,11 @@ export class Reticle {
       p.log(LOG_KIND.READ, label, undefined, actor);
     }
   }
+}
+
+/** Who a narration line is from: the Harness when the daemon says so, else the connected agent. */
+function narrationActor(args: Record<string, unknown>): LogActor {
+  return CommandActor.HARNESS === args['actor'] ? LOG_ACTOR.HARNESS : LOG_ACTOR.AGENT;
 }
 
 /** The value when it is one of the enum's, else undefined: a page never trusts a free string. */

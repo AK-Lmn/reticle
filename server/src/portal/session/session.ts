@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import { asProjectId, type ChannelId, type ImpactSnapshot, type ProjectId } from '@reticlehq/core';
+import { narrationArgs, type NarrationBy } from './narration-args.js';
 import type { HandshakeFacts } from './facts/handshake-facts.js';
 import { refusedResult } from './page-commands/undeclared-command.js';
 import { impactSnapshot, recordImpact } from '@/memory/impact/impact-recorder.js';
@@ -905,9 +906,10 @@ export class Session implements HandshakeFacts {
   #impactTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** `mirror: false` for a notice about THIS page (its SDK is behind), which every tab says itself. */
-  pushNarration(text: string, mirror = true): void {
-    if (mirror) this.#post(ReticleCommand.NARRATE, { text, level: 'info' });
-    else this.#send(ReticleCommand.NARRATE, { text, level: 'info' });
+  pushNarration(text: string, mirror = true, by?: NarrationBy): void {
+    const args = narrationArgs(text, by);
+    if (mirror) this.#post(ReticleCommand.NARRATE, args);
+    else this.#send(ReticleCommand.NARRATE, args);
   }
 
   /** A HUD replay's progress, or the Harness's drive plan: pictures the HUD redraws as they change. */

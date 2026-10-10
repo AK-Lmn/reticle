@@ -63,6 +63,25 @@ describe('the apps reported to each platform', () => {
       name: (dirs[t.sessionId] ?? '/').split('/').pop() ?? '',
     });
 
+  /*
+   * A fresh tab opened beside the one an agent had driven reported for the app, and the setup score
+   * fell from 87% to 75%: the Harness locked again until that tab happened to close. Of two tabs of
+   * one app, the one that has seen the most speaks for it.
+   */
+  it('reports the tab of an app that has seen the most, not the one that happened to come first', async () => {
+    const groups = await appsByPlatform(
+      [
+        tab('s1', 'http://localhost:3000/', { channels: ['ui', 'net'] }),
+        tab('s3', 'http://localhost:3000/compose', { channels: ['ui', 'net', 'source', 'testid'] }),
+      ],
+      undefined,
+      MACHINE.id,
+      describeTab,
+    );
+    expect(groups[0]?.apps).toHaveLength(1);
+    expect(groups[0]?.apps[0]?.url).toBe('http://localhost:3000/compose');
+  });
+
   it('reports each project once, to the platform its link names, with what it is built with', async () => {
     const groups = await appsByPlatform(
       [

@@ -472,14 +472,20 @@ describe('running the Harness from the panel', () => {
     pick(root, 'keyboard');
     root.querySelector<HTMLElement>('[data-reticle-harness-run]')?.click();
     views.paintDrive({ runId: 'harness-1', steps: 7 });
-    // The foot row and the page both say it: the log stays readable while it runs.
-    for (const scope of ['[data-reticle-harness-spot]', '[data-reticle-harness-page]']) {
+    // The foot row and the page both say it, with Stop; the foot row's steps open the page.
+    for (const [scope, said] of [
+      ['[data-reticle-harness-spot]', '.reticle-harness-state'],
+      ['[data-reticle-harness-page]', '.reticle-harness-said'],
+    ] as const) {
       expect(root.querySelectorAll(`${scope} .reticle-harness-row`)).toHaveLength(1);
-      expect(root.querySelector(`${scope} .reticle-harness-said`)?.textContent).toBe(
+      expect(root.querySelector(`${scope} ${said}`)?.textContent).toBe(
         'Driving as Keyboard only · 7 steps',
       );
       expect(root.querySelector(`${scope} [data-reticle-harness-stop]`)).not.toBeNull();
     }
+    expect(
+      root.querySelector('[data-reticle-harness-spot] [data-reticle-harness-open]'),
+    ).not.toBeNull();
   });
 
   it('reveals the text box for Custom and runs with the words typed there', () => {

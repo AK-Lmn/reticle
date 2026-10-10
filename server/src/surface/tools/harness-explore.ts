@@ -53,6 +53,7 @@ import {
   goalsMet,
   readOpening,
   goalsIn,
+  unprovedGoals,
   type GoalCheck,
 } from '@/features/harness/goals.js';
 import { instrumentationOf } from '@/portal/session/recorded-gaps.js';
@@ -305,7 +306,7 @@ export async function exploreApp(
     toolset.invoke(name, args);
   // Read before anything is driven: a goal this page already shows proves nothing at the end.
   const opening = await readOpening(invoke);
-  narrate(`Harness is driving${options.focus === undefined ? '' : `: ${options.focus}`}`);
+  narrate(`Harness is driving${options.focus === undefined ? '' : `: ${options.focus}`}`, true);
   const drive = await runHarness(driver, toolset, {
     ...steering(options),
     maxSteps,
@@ -327,6 +328,7 @@ export async function exploreApp(
       : StopReason.BROKEN === drive.stopReason
         ? msgDriveCutOff(drive.error)
         : `Harness finished — ${verdictLine(checkTally(drive.toolCalls))}`,
+    true,
   );
   // MANDATORY, and deliberately outside the loop. A drive that runs out of budget mid-journey, or
   // breaks, or whose model simply stops asking for tools, leaves a recording open and everything it
@@ -339,6 +341,8 @@ export async function exploreApp(
   ];
   // The goals it was given decide whether the journey was done, not a click that held on the way.
   noteHarnessGoal(harnessId, goalsMet(goals));
+  const unproved = unprovedGoals(goals);
+  if (unproved !== undefined) narrate(unproved, true);
 
   const after = await reads.flows.list();
   const reconciled = reconcileFlows(before, after, drive.toolCalls);
@@ -375,12 +379,18 @@ export function steering(options: ExploreOptions): Pick<HarnessOptions, 'stopped
 }
 
 /** A line in the HUD's Agent Log for the person watching; nobody watching is not an error. */
-export function narrator(deps: ToolDeps, options: ExploreOptions): (text: string) => void {
-  return (text) => {
+export function narrator(
+  deps: ToolDeps,
+  options: ExploreOptions,
+): (text: string, summary?: boolean) => void {
+  return (text, summary = false) => {
     // The drive's poll answers with its latest line, whether or not a tab is watching.
     if (options.harnessId !== undefined) noteDriveLine(options.harnessId, text);
     try {
-      deps.sessions.resolve(options.sessionId).pushNarration(text);
+      // Filed in the HUD's Harness log; its start and end lines in the Agent Log too.
+      deps.sessions
+        .resolve(options.sessionId)
+        .pushNarration(text, true, { harness: true, summary });
     } catch {
       /* nobody is watching: the drive still runs */
     }

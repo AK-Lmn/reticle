@@ -355,8 +355,11 @@ const DIST_ENTRY = join(PACKAGE_ROOT, 'dist', 'index.js');
  * "Measured, rounded up to the next hundred" left ~30 B of room, so every PR that added bytes had
  * to touch this constant and any two of them conflicted in the merge queue: #1479 and #1484 both
  * raised it on 2026-10-09. Measured 257,747 B on main after both landed; ceiling 258,747.
+ *
+ * The HUD round on feat/hud-clarity (Harness page and switch, the one-driver-per-log split that
+ * tags every narration with who sent it) measured 258,797 B; ceiling 259,797 by the convention.
  */
-const MAX_FIRST_LOAD_BYTES = 258_747;
+const MAX_FIRST_LOAD_BYTES = 259_797;
 /*
  * Raised 248_300 -> 248_400 for rail slide impressions: `HudUseData` gained an optional `slide`
  * string, its shape checked in the daemon where it is counted, as control ids already are. The

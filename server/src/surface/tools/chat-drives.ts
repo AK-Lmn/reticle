@@ -391,7 +391,9 @@ export async function hudDrive(
     requestFreeDrive(platform, FreeDriveKind.EXPLORE),
 ): Promise<void> {
   if (HumanControlKind.HARNESS === request.kind) return applySwitch(request.enabled);
-  const say = (text: string): void => deps.sessions.get?.(sessionId)?.pushNarration(text);
+  // What the panel's Run and Stop answer belongs in the Harness log, and in the Agent Log as a summary.
+  const say = (text: string): void =>
+    deps.sessions.get?.(sessionId)?.pushNarration(text, true, { harness: true, summary: true });
   if (HumanControlKind.HARNESS_STOP === request.kind) {
     const running = runningDrive(sessionId);
     if (running === undefined || !stopDrive(running.harnessRun)) say(MSG_NOTHING_DRIVING);

@@ -18,3 +18,18 @@ export function runDrivenBy<T>(by: DrivenBy, fn: () => Promise<T>): Promise<T> {
 export function currentDrivenBy(): DrivenBy | undefined {
   return current.getStore();
 }
+
+/**
+ * Bind a callback to the Harness drive running NOW, so it is still the Harness's when it fires later.
+ *
+ * A wait re-checks its predicate from a page-event listener and a timer, outside the awaited chain,
+ * where this context does not reach. Those re-checks went to the page untagged and the HUD filed the
+ * Harness's own "Finding…" rows in the Agent Log. Returns `fn` unchanged outside a drive.
+ */
+export function bindDrivenBy<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
+  const by = current.getStore();
+  if (by === undefined) return fn;
+  return (...args: A): void => {
+    current.run(by, () => fn(...args));
+  };
+}

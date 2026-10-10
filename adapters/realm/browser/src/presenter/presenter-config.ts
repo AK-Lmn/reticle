@@ -125,6 +125,8 @@ export const ACT_STRIP = {
   STOPPED_PREFIX: 'stopped · ',
   NOW: 'now',
   SINCE_LAST: ' since last action',
+  harnessTesting: (steps: number): string =>
+    `Testing · Harness · ${String(steps)} step${1 === steps ? '' : 's'}`,
 } as const;
 /** Default session-idle-end: after this much quiet the session auto-ends (glow off, panel persists
  * for analysis). Agent-tweakable via reticle_session { idleEndMs } for the app's needs. */

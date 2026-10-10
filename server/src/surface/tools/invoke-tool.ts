@@ -5,6 +5,7 @@ import { currentDrivenBy } from '@/hooks/driven-by.js';
 import { runAsAgent } from '@/hooks/coding-agents.js';
 import { takeHumanNotes } from './human-notes.js';
 import { takeDriveNotes } from '@/features/harness/drive-runs.js';
+import { harnessDriving, msgHarnessHasTheTab } from './harness-tab-guard.js';
 import { sessionRoot } from '@/memory/project/session-root.js';
 import { agentNudge, takePlatformMoment } from './platform-moment.js';
 import { verifyNextBaton, SUPPRESS_VERIFY_NEXT_ENV } from './verify-next-baton.js';
@@ -442,6 +443,14 @@ async function dispatchTool<Ext>(
       'value — a selector or an id rather than a document, or a slice of the text you need.';
     // Refused before the handler was ever entered, and still a refusal the agent has to recover
     // from. Reported here rather than at the return below, which this branch never reaches.
+    reportRefusal(tool.name, error);
+    return { error };
+  }
+  // One driver per tab. The Harness clicking through a page while the agent clicks too is two hands
+  // on one mouse: neither result means anything. The agent's own action waits; its reads still run.
+  const busy = ACTION_TOOLS.has(tool.name) ? harnessDriving(deps, args) : undefined;
+  if (busy !== undefined) {
+    const error = msgHarnessHasTheTab(busy);
     reportRefusal(tool.name, error);
     return { error };
   }
