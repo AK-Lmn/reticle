@@ -42,7 +42,26 @@ function holdsUserText(el: ActionTarget): boolean {
   return false;
 }
 
+const ANCHOR_TAG = 'A';
+
+/** An href that goes nowhere, so the link is a button in disguise and its text is its action. */
+const INERT_HREF = /^\s*(#.*|javascript:.*)?$/i;
+
+/**
+ * Where a real link goes, when it goes somewhere. Its text is CONTENT the app shows (an issue titled
+ * "Checkout pay fails" was blocked as a payment); following a link is a navigation, so its target is
+ * what can be destructive (`/account/delete`), not the words on it.
+ */
+function navigatingHref(el: ActionTarget): string | undefined {
+  // By tag, not `instanceof`: a link inside a same-origin iframe has that frame's constructors.
+  if (ANCHOR_TAG !== el.tagName) return undefined;
+  const href = el.getAttribute('href');
+  return null === href || INERT_HREF.test(href) ? undefined : href;
+}
+
 export function dangerousActionContext(el: ActionTarget): string {
+  const href = navigatingHref(el);
+  if (href !== undefined) return href;
   const form = el.closest('form');
   // The label surfaces only, when the content is the user's own. The accessible NAME still counts:
   // that is the prompt beside the field, and "Type DELETE to remove this account" is exactly the

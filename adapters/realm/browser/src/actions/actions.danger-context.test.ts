@@ -189,3 +189,23 @@ describe('submitControlFor across realms', () => {
     );
   });
 });
+
+/** An issue link whose title read "Checkout pay fails" was blocked as a payment. */
+describe('a link is judged by where it goes, not by the text it shows', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('does not block a link whose text reads as destructive', async () => {
+    document.body.innerHTML =
+      '<a id="i" href="/issues/42">Checkout pay fails when the button is disabled</a>';
+    await expect(executeAction(refTo('#i'), 'click')).resolves.toBeDefined();
+  });
+
+  it('still blocks a link that goes somewhere destructive, or one that goes nowhere', async () => {
+    document.body.innerHTML =
+      '<a id="d" href="/account/delete">Account</a><a id="b" href="#">Delete account</a>';
+    await expect(executeAction(refTo('#d'), 'click')).rejects.toThrow(/confirmDangerous/);
+    await expect(executeAction(refTo('#b'), 'click')).rejects.toThrow(/confirmDangerous/);
+  });
+});
