@@ -241,8 +241,12 @@ export function resetPlatformMoments(): void {
  * said lives here, per process.
  */
 
-/** Hand-driven actions in one session before a journey counts as long. */
-export const LONG_JOURNEY_ACTS = 8;
+/**
+ * Hand-driven actions before the agent is told to hand journeys to the Harness. One: with the
+ * Harness switched on, the person has said they want journeys driven by it, so the agent hears it on
+ * its first hand-driven step rather than after eight.
+ */
+export const LONG_JOURNEY_ACTS = 1;
 
 const UNLOCK_PERCENT = Math.round(HARNESS_UNLOCK_COVERAGE * 100);
 
@@ -259,9 +263,11 @@ export const NudgeText = {
     `(${String(UNLOCK_PERCENT)}% unlocks it), so Reticle Harness can be switched on in the HUD's ` +
     'Settings or the dashboard; it drives whole journeys on the platform and saves them as flows.',
   explore: (acts: number): string =>
-    `You have driven ${String(acts)} steps by hand. Reticle Harness is on for this project: ` +
-    'reticle_verify { action: "explore", persona: "<the journey>" } drives it on the platform ' +
-    'and saves it as a flow, for far fewer of your tokens.',
+    `Reticle Harness is on for this project (you have driven ${String(acts)} step${1 === acts ? '' : 's'} by hand), so ` +
+    'the user wants journeys driven by the Harness, not step by step: call reticle_verify ' +
+    '{ action: "explore", persona: "<the journey, with the text the page must show at the end in quotes>" }, ' +
+    'then repeat the call with the runId it returns until it finishes, and report its verdict. ' +
+    'Drive by hand only to check one detail.',
 } as const;
 
 export interface NudgeInput {

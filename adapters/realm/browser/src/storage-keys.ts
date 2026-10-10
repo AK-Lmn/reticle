@@ -20,7 +20,6 @@ export const ReticleStorageKey = {
   CAROUSEL_DISMISSED: 'reticle.carousel.dismissed',
   HARNESS_OFFER_DISMISSED: 'reticle.harnessOffer.dismissed',
   ANNOTATION_HISTORY: 'reticle.annotations.history.v1',
-  RECENT_PLAYS: 'reticle.flow.recent.v1',
 } as const;
 
 /** The tour's per-project "seen" flags: one key per project, so a prefix. */

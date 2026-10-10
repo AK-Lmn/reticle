@@ -26,6 +26,7 @@ import {
   HARNESS_OPEN_ATTR,
   HARNESS_ROW_TEXT,
   HARNESS_SWITCH_ON_ATTR,
+  HARNESS_TOGGLE_ATTR,
   creditsShort,
   harnessFootHtml,
   harnessRowHtml,
@@ -42,12 +43,7 @@ import {
   readPick,
   savePick,
 } from './presenter-personas.js';
-import {
-  AGENT_LINK_CSS,
-  AGENT_LINK_HTML,
-  AgentLinkView,
-  agentsLine,
-} from './presenter-agent-link.js';
+import { AGENT_LINK_CSS, AGENT_LINK_HTML, AgentLinkView } from './presenter-agent-link.js';
 
 export type ChatView = 'activity' | 'flows' | 'annotations' | 'harness';
 const PAGE_VIEWS: readonly ChatView[] = ['flows', 'annotations', 'harness'];
@@ -111,13 +107,13 @@ function saveHistory(items: HistoricalAnnotation[]): void {
 export interface HudDriveHost {
   run(persona?: string): void;
   stop(): void;
-  switchOn(): void;
+  /** The Harness switch: written through to the platform, as Settings and the dashboard do. */
+  setHarness(on: boolean): void;
   link(): void;
 }
 
 export const CHAT_VIEWS_HTML = `${AGENT_LINK_HTML}
-  <div data-reticle-harness-spot class="reticle-harness-spot" hidden></div>
-  <p data-reticle-foot-meta class="reticle-foot-meta"></p>`;
+  <div data-reticle-harness-spot class="reticle-harness-spot" hidden></div>`;
 
 export const FLOWS_PAGE_HTML: string = `<section data-reticle-page-panel="flows" class="reticle-page-panel reticle-flows-view" role="region" aria-label="Saved Flows" hidden>
   <div class="reticle-page-heading"><span class="reticle-page-titles"><strong>Saved flows</strong><span class="reticle-page-subtitle">Journeys your agent verified, replayable here</span></span><button type="button" data-reticle-page-close aria-label="Close Saved Flows" title="Close">×</button></div>
@@ -125,11 +121,24 @@ export const FLOWS_PAGE_HTML: string = `<section data-reticle-page-panel="flows"
 </section>`;
 
 const NAV_ICON_SIZE = PRESENTER_ICON_SIZE.NAV;
+/** The name under each icon: every page says what it is without a hover. */
+export const NAV_LABEL = {
+  LOG: 'Log',
+  FLOWS: 'Flows',
+  NOTES: 'Notes',
+  IMPACT: 'Impact',
+  HARNESS: 'Harness',
+  SETTINGS: 'Settings',
+  HIDE: 'Hide',
+} as const;
+export const navLabelHtml = (text: string): string =>
+  `<span class="reticle-nav-label">${text}</span>`;
 export const CHAT_VIEWS_NAV_HTML = `<nav class="reticle-chat-nav" aria-label="Reticle views">
-  <button type="button" ${CHAT_TOGGLE_ATTR} data-reticle-chat-view-btn="activity" aria-label="Agent log" title="Agent log" aria-current="page">${hiIconHtml(PresenterIcon.MESSAGE, NAV_ICON_SIZE)}</button>
-  <button type="button" data-reticle-chat-view-btn="flows" aria-label="Saved flows" title="Saved flows">${hiIconHtml(PresenterIcon.LAYOUT, NAV_ICON_SIZE)}</button>
-  <button type="button" data-reticle-chat-view-btn="annotations" aria-label="Notes" title="Notes">${hiIconHtml(PresenterIcon.NOTES, NAV_ICON_SIZE)}<span data-reticle-note-count class="reticle-nav-count" hidden></span></button>
-  <button type="button" data-reticle-chat-impact class="reticle-chat-impact" aria-label="Open Impact" title="Impact">${hiIconHtml(PresenterIcon.CHART, NAV_ICON_SIZE)}<span data-reticle-chat-verdicts class="reticle-nav-count"></span></button>
+  <button type="button" ${CHAT_TOGGLE_ATTR} data-reticle-chat-view-btn="activity" aria-label="Agent log" title="Agent log" aria-current="page">${hiIconHtml(PresenterIcon.MESSAGE, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.LOG)}</button>
+  <button type="button" data-reticle-chat-view-btn="flows" aria-label="Saved flows" title="Saved flows">${hiIconHtml(PresenterIcon.LAYOUT, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.FLOWS)}</button>
+  <button type="button" data-reticle-chat-view-btn="annotations" aria-label="Notes" title="Notes">${hiIconHtml(PresenterIcon.NOTES, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.NOTES)}<span data-reticle-note-count class="reticle-nav-count" hidden></span></button>
+  <button type="button" data-reticle-chat-impact class="reticle-chat-impact" aria-label="Open Impact" title="Impact">${hiIconHtml(PresenterIcon.CHART, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.IMPACT)}<span data-reticle-chat-verdicts class="reticle-nav-count"></span></button>
+  <button type="button" data-reticle-chat-view-btn="harness" aria-label="${HARNESS_ROW_TEXT.PAGE_TITLE}" title="${HARNESS_ROW_TEXT.PAGE_TITLE}" hidden>${hiIconHtml(PresenterIcon.PLAY, NAV_ICON_SIZE)}${navLabelHtml(NAV_LABEL.HARNESS)}</button>
 </nav>`;
 
 const ANNOTATION_ACTION_ICON_SIZE = PRESENTER_ICON_SIZE.TOOLBAR;
@@ -175,6 +184,10 @@ ${HARNESS_ROW_CSS.replaceAll('[data-reticle-chat-panel]', '[data-reticle-page-pa
 [data-reticle-hud] .reticle-chat-nav button[data-capture="1"]{color:var(--reticle-accent);box-shadow:inset 0 -2px var(--reticle-accent);}
 [data-reticle-hud] .reticle-chat-nav button[aria-current="page"],[data-reticle-hud] .reticle-chat-nav button[data-active="1"]{background:var(--reticle-hud-inset);color:var(--reticle-hud-text);}
 [data-reticle-hud] .reticle-chat-nav .reticle-hi-icon{opacity:.92;}
+[data-reticle-hud] .reticle-chat-nav button[hidden]{display:none;}
+/* An icon with its name under it, small: every page says what it is without a hover. */
+[data-reticle-hud] .reticle-toolbar-chrome .reticle-chat-nav button{flex-direction:column;gap:2px;width:100%;height:auto;min-height:42px;padding:4px 0 3px;}
+[data-reticle-hud] .reticle-nav-label{display:block;font-size:9px;line-height:1;font-weight:500;letter-spacing:.01em;color:inherit;white-space:nowrap;}
 [data-reticle-hud] .reticle-chat-nav .reticle-nav-count:empty{display:none;}
 [data-reticle-hud] .reticle-chat-nav .reticle-nav-count:not(:empty){position:absolute;top:0;right:0;min-width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center;padding:0 3px;border-radius:99px;background:var(--reticle-accent);color:#fff;font-size:8px;font-weight:700;}
 [data-reticle-hud] .reticle-chat-nav .reticle-nav-count[hidden]{display:none;}
@@ -239,7 +252,6 @@ export class ChatViews {
   /** Link pressed and not answered yet: the page says Linking… until the daemon's push says linked. */
   #linking = false;
   #agent = new AgentLinkView();
-  #agentLink: AgentLink | undefined;
   /** The persona this panel started the running drive as, so its row can say so. */
   #startedAs: string | undefined;
 
@@ -276,7 +288,15 @@ export class ChatViews {
         return;
       }
       if (null !== target.closest(`[${HARNESS_SWITCH_ON_ATTR}]`)) {
-        this.#drive?.switchOn();
+        this.#drive?.setHarness(true);
+        return;
+      }
+      const toggle = target.closest<HTMLButtonElement>(`[${HARNESS_TOGGLE_ATTR}]`);
+      if (null !== toggle) {
+        // Shown at once; the platform's answer repaints it either way.
+        const on = 'true' !== toggle.getAttribute('aria-checked');
+        toggle.setAttribute('aria-checked', String(on));
+        this.#drive?.setHarness(on);
         return;
       }
       const linkButton = target.closest<HTMLButtonElement>(`[${HARNESS_LINK_ATTR}]`);
@@ -435,12 +455,14 @@ export class ChatViews {
   }
   /** Who is coding against this daemon, and this tab's notes to them. */
   paintAgent(link: AgentLink | undefined): void {
-    this.#agentLink = link;
     this.#agent.paint(link);
     this.#paintMeta();
   }
   paintAccount(account: AccountState | undefined): void {
     this.#account = account;
+    const nav = this.#root?.querySelector<HTMLElement>('[data-reticle-chat-view-btn="harness"]');
+    // The Harness page is for a signed-in person; signed out, the foot row offers Sign in.
+    if (nav !== null && nav !== undefined) nav.hidden = true !== account?.signedIn;
     this.#paintHarness();
   }
   /** The drive running in this tab's project, from the daemon's snapshot: Stop while one runs. */
@@ -524,18 +546,9 @@ export class ChatViews {
     this.#paintMeta();
   }
 
-  /** One 11px line under the rows: who is connected, and the credits left. */
+  /** The Harness page's one credits line: the platform's full sentence, said once. */
   #paintMeta(): void {
-    const meta = this.#root?.querySelector<HTMLElement>('[data-reticle-foot-meta]');
-    if (null === meta || meta === undefined) return;
-    const agents = this.#agentLink?.agents ?? [];
     const signedIn = true === this.#account?.signedIn;
-    meta.textContent = [
-      0 === agents.length ? '' : agentsLine(agents),
-      signedIn ? creditsShort(this.#harness?.credits) : '',
-    ]
-      .filter((part) => 0 < part.length)
-      .join(' · ');
     const pageMeta = this.#root?.querySelector<HTMLElement>('[data-reticle-harness-page-meta]');
     if (pageMeta !== null && pageMeta !== undefined)
       pageMeta.textContent = signedIn ? creditsShort(this.#harness?.credits) : '';

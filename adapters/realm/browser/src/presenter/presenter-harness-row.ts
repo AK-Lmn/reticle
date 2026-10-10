@@ -47,11 +47,13 @@ export const HARNESS_ROW_TEXT = {
   MORE: 'Get more ↗',
   driving: (as: string | undefined, steps: number): string =>
     `Driving${as === undefined ? '' : ` as ${as}`} · ${String(steps)} step${1 === steps ? '' : 's'}`,
-  /** The foot row: "Harness · On · 380 credits ›". */
-  foot: (state: string): string => `Harness · ${state} ›`,
+  NAME: 'Harness',
+  /** The switch's accessible name: it says what it does, whichever way it is. */
+  TOGGLE: 'Reticle Harness on this project',
+  /** Compact credits for the foot row; the full sentence is its tooltip. */
+  creditsLeft: (left: number, days: number | undefined): string =>
+    `${left.toLocaleString('en-US')} credit${1 === left ? '' : 's'}${days === undefined ? '' : ` · ${String(days)} day${1 === days ? '' : 's'}`}`,
   FOOT_LINK: 'Link project',
-  FOOT_OFF: 'Off',
-  FOOT_ON: 'On',
   FOOT_NO_CREDITS: 'No credits',
   FOOT_NOT_ENTITLED: 'Not on your plan',
   FOOT_NO_PROVIDER: 'No model provider',
@@ -66,6 +68,8 @@ export const HARNESS_SWITCH_ON_ATTR = 'data-reticle-harness-switch';
 export const HARNESS_LINK_ATTR = 'data-reticle-harness-link';
 /** The foot row's button: opens the Harness page. */
 export const HARNESS_OPEN_ATTR = 'data-reticle-harness-open';
+/** The foot row's on/off switch: the same write-through as Settings and the dashboard. */
+export const HARNESS_TOGGLE_ATTR = 'data-reticle-harness-toggle';
 /** Copies the prompt that closes the coverage gate. */
 export const HARNESS_COPY_PROMPT_ATTR = 'data-reticle-harness-copy-prompt';
 
@@ -174,9 +178,19 @@ function footState(s: HarnessRowState): string {
     return HARNESS_ROW_TEXT.FOOT_NO_CREDITS;
   if (!config.harnessEntitled) return HARNESS_ROW_TEXT.FOOT_NOT_ENTITLED;
   if (false === config.providerReady) return HARNESS_ROW_TEXT.FOOT_NO_PROVIDER;
-  if (!config.harnessEnabled) return HARNESS_ROW_TEXT.FOOT_OFF;
-  const credits = creditsShort(config.credits);
-  return 0 < credits.length ? `${HARNESS_ROW_TEXT.FOOT_ON} · ${credits}` : HARNESS_ROW_TEXT.FOOT_ON;
+  const credits = config.credits;
+  return credits === undefined
+    ? ''
+    : HARNESS_ROW_TEXT.creditsLeft(Math.max(0, credits.limit - credits.used), credits.daysLeft);
+}
+
+/** The switch shows only where switching does something: linked, unlocked, entitled, credits left. */
+function switchable(s: HarnessRowState): boolean {
+  const config = s.config;
+  if (config === undefined) return false;
+  if (s.gate !== undefined && !s.gate.unlocked && s.gate.reason !== undefined) return false;
+  if (config.credits !== undefined && creditsSpent(config.credits)) return false;
+  return config.harnessEntitled && false !== config.providerReady;
 }
 
 /**
@@ -186,8 +200,14 @@ function footState(s: HarnessRowState): string {
 export function harnessFootHtml(s: HarnessRowState): string {
   if (s.account === undefined) return '';
   if (!s.account.signedIn || (s.drive !== undefined && s.canDrive)) return harnessRowHtml(s);
+  const on = true === s.config?.harnessEnabled;
+  const credits = s.config?.credits;
+  const title = credits === undefined ? '' : ` title="${esc(creditsUsageText(credits))}"`;
+  const toggle = switchable(s)
+    ? `<button type="button" role="switch" ${HARNESS_TOGGLE_ATTR} class="reticle-harness-toggle" aria-checked="${String(on)}" aria-label="${HARNESS_ROW_TEXT.TOGGLE}"><span class="reticle-harness-knob"></span></button>`
+    : '';
   return row(
-    `<button type="button" ${HARNESS_OPEN_ATTR} class="reticle-harness-open">${esc(HARNESS_ROW_TEXT.foot(footState(s)))}</button>`,
+    `<button type="button" ${HARNESS_OPEN_ATTR} class="reticle-harness-open"${title}><span class="reticle-harness-name">${HARNESS_ROW_TEXT.NAME}</span><span class="reticle-harness-state">${esc(footState(s))}</span><span class="reticle-harness-chev" aria-hidden="true">›</span></button>${toggle}`,
   );
 }
 
@@ -259,8 +279,16 @@ export const HARNESS_ROW_CSS = `
 [data-reticle-chat-panel] .reticle-harness-stop{background:transparent;color:var(--reticle-hud-text);border:1px solid var(--reticle-hud-border-strong);}
 [data-reticle-chat-panel] .reticle-harness-link{flex:none;border:0;padding:0;background:none;cursor:pointer;font:inherit;color:var(--reticle-hud-brand);font-size:var(--reticle-hud-size-sm);font-weight:600;text-decoration:none;white-space:nowrap;}
 [data-reticle-chat-panel] .reticle-harness-link:hover{text-decoration:underline;}
-[data-reticle-chat-panel] .reticle-harness-open{flex:1;min-width:0;height:30px;padding:0 var(--reticle-hud-space-2);border:0;border-radius:var(--reticle-hud-radius-sm);background:transparent;cursor:pointer;
-  text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-size:var(--reticle-hud-size-sm);color:var(--reticle-hud-text);}
+[data-reticle-chat-panel] .reticle-harness-open{flex:1;min-width:0;height:30px;display:flex;align-items:center;gap:8px;padding:0 var(--reticle-hud-space-2);border:0;border-radius:var(--reticle-hud-radius-sm);background:transparent;cursor:pointer;
+  text-align:left;white-space:nowrap;font:inherit;font-size:var(--reticle-hud-size-sm);color:var(--reticle-hud-text);}
+[data-reticle-chat-panel] .reticle-harness-name{flex:none;font-weight:600;}
+[data-reticle-chat-panel] .reticle-harness-state{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--reticle-hud-text-muted);font-size:11px;font-variant-numeric:tabular-nums;}
+[data-reticle-chat-panel] .reticle-harness-chev{flex:none;color:var(--reticle-hud-text-faint);}
+[data-reticle-chat-panel] .reticle-harness-toggle{flex:none;position:relative;width:30px;height:18px;padding:0;border:0;border-radius:9px;cursor:pointer;background:var(--reticle-hud-border-strong);transition:background .15s;}
+[data-reticle-chat-panel] .reticle-harness-toggle[aria-checked="true"]{background:var(--reticle-hud-brand);}
+[data-reticle-chat-panel] .reticle-harness-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s;}
+[data-reticle-chat-panel] .reticle-harness-toggle[aria-checked="true"] .reticle-harness-knob{transform:translateX(12px);}
+[data-reticle-chat-panel] .reticle-harness-toggle:focus-visible{outline:2px solid var(--reticle-hud-text);outline-offset:2px;}
 [data-reticle-chat-panel] .reticle-harness-open:hover{background:var(--reticle-hud-hover);}
 [data-reticle-chat-panel] .reticle-harness-open:focus-visible{outline:2px solid var(--reticle-hud-brand);outline-offset:0;}
 [data-reticle-chat-panel] .reticle-harness-run:disabled{opacity:.6;cursor:default;}

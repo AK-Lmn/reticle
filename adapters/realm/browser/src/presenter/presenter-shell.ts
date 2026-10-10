@@ -42,6 +42,8 @@ import {
   ANNOTATIONS_HTML,
   FLOWS_PAGE_HTML,
   HARNESS_PAGE_HTML,
+  NAV_LABEL,
+  navLabelHtml,
   platformBase,
   type ChatView,
 } from './presenter-chat-views.js';
@@ -282,7 +284,7 @@ export class HudShell {
       {
         run: (persona) => callbacks.onHarnessRun?.(persona),
         stop: () => callbacks.onHarnessStop?.(),
-        switchOn: () => callbacks.onHarness?.(true),
+        setHarness: (on) => callbacks.onHarness?.(on),
         link: () => callbacks.onHarnessLink?.(),
       },
     );
@@ -343,11 +345,11 @@ export class HudShell {
           <div class="reticle-toolbar-chrome">
             ${CHAT_VIEWS_NAV_HTML}
             <div class="reticle-tb-wrap">
-              <button type="button" ${SETTINGS_BTN_ATTR} class="reticle-tb-btn reticle-tb-btn--toggle" title="${SETTINGS_LABEL}" aria-label="${SETTINGS_LABEL}" aria-pressed="false" data-active="0">${gear}</button>
+              <button type="button" ${SETTINGS_BTN_ATTR} class="reticle-tb-btn reticle-tb-btn--toggle" title="${SETTINGS_LABEL}" aria-label="${SETTINGS_LABEL}" aria-pressed="false" data-active="0">${gear}${navLabelHtml(NAV_LABEL.SETTINGS)}</button>
               <span class="reticle-tb-tip">${SETTINGS_LABEL}</span>
             </div>
             <div class="reticle-tb-wrap">
-              <button type="button" data-reticle-min-btn class="reticle-tb-btn" title="${EXIT_LABEL}" aria-label="${EXIT_LABEL}">${exit}</button>
+              <button type="button" data-reticle-min-btn class="reticle-tb-btn" title="${EXIT_LABEL}" aria-label="${EXIT_LABEL}">${exit}${navLabelHtml(NAV_LABEL.HIDE)}</button>
               <span class="reticle-tb-tip">${EXIT_LABEL}<span class="reticle-tb-kbd">Esc</span></span>
             </div>
           </div>

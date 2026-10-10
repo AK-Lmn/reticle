@@ -177,7 +177,7 @@ ${BELOW} ${PAGES}{bottom:auto;top:calc(100% + 8px + var(--reticle-rail-h) + var(
 [${SETTINGS_PANEL_ATTR}] .reticle-settings-reset{background:none;text-align:left;padding-left:14px;font-weight:500;}
 
 /* ── Toolbar: Settings and Exit are tabs like the four beside them, so they light the same way. ── */
-[data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn{width:var(--reticle-hud-control-size);height:var(--reticle-hud-control-size);
+[data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn{width:100%;height:auto;flex-direction:column;gap:2px;min-height:42px;padding:4px 0 3px;
   border-radius:var(--reticle-hud-radius-md);background:transparent;color:var(--reticle-hud-text-muted);}
 [data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn:hover{background:var(--reticle-hud-hover);color:var(--reticle-hud-text);}
 [data-reticle-hud] .reticle-toolbar-chrome .reticle-tb-btn[data-active="1"],

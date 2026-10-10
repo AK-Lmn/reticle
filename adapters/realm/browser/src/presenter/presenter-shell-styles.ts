@@ -107,8 +107,7 @@ export const SHELL_CSS = `
 [${OVERLAY}][data-reticle-mode="idle"][data-reticle-block="0"] [${CHAT_PANEL}] [data-reticle-log]{
   pointer-events:none;}
 /* ...except a log with more than it shows: a feed nobody can scroll back through is not a log. */
-[${OVERLAY}][data-reticle-mode="idle"][data-reticle-block="0"] [${CHAT_PANEL}] [data-reticle-log][data-reticle-log-scrollable],
-[${OVERLAY}][data-reticle-mode="idle"][data-reticle-block="0"] [${CHAT_PANEL}] .reticle-flow-strip{
+[${OVERLAY}][data-reticle-mode="idle"][data-reticle-block="0"] [${CHAT_PANEL}] [data-reticle-log][data-reticle-log-scrollable]{
   pointer-events:auto;}
 [${OVERLAY}][data-reticle-mode="idle"][data-reticle-block="0"] [${CHAT_PANEL}] :is(button,a,input,select,textarea){
   pointer-events:auto;}
@@ -274,7 +273,7 @@ export const SHELL_CSS = `
 [${HUD}] .reticle-toolbar-actions{
   display:inline-flex;align-items:center;gap:2px;flex:none;
   padding:2px;border-radius:999px;background:rgba(0,0,0,.2);}
-[${HUD}] .reticle-toolbar-chrome{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-items:center;gap:var(--reticle-hud-space-1);flex:1;min-width:0;}
+[${HUD}] .reticle-toolbar-chrome{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:center;gap:var(--reticle-hud-space-1);flex:1;min-width:0;}
 [${HUD}] .reticle-tb-sep{width:1px;height:14px;background:rgba(255,255,255,.12);margin:0 4px;flex:none;align-self:center;}
 
 [${HUD}] .reticle-tb-wrap{position:relative;display:flex;align-items:center;justify-content:center;overflow:visible;}

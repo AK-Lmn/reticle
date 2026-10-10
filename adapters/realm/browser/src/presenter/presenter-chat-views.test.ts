@@ -11,7 +11,7 @@ import {
 import { PERSONAS } from './presenter-personas.js';
 import { harnessGateIn } from './presenter-harness-row.js';
 
-const driveHost = () => ({ run: vi.fn(), stop: vi.fn(), switchOn: vi.fn(), link: vi.fn() });
+const driveHost = () => ({ run: vi.fn(), stop: vi.fn(), setHarness: vi.fn(), link: vi.fn() });
 
 const mountViews = (drive = driveHost()) => {
   document.body.innerHTML = `<div data-reticle-overlay><div data-reticle-chat-panel>${CHAT_VIEWS_HTML}<section class="reticle-chat-view" aria-label="Agent Log"></section></div>${FLOWS_PAGE_HTML}${HARNESS_PAGE_HTML}${ANNOTATIONS_HTML}${CHAT_VIEWS_NAV_HTML}</div>`;
@@ -60,20 +60,28 @@ describe('chat views and harness access states', () => {
   it('signed in, the foot is one button that names the state and opens the Harness page', () => {
     const { root, views, onOpenChat } = mountViews();
     views.paintAccount({ signedIn: true });
-    for (const [config, said] of [
-      [undefined, 'Harness · Link project ›'],
-      [{ ...entitled, harnessEntitled: false }, 'Harness · Not on your plan ›'],
-      [{ ...entitled, providerReady: false }, 'Harness · No model provider ›'],
-      [{ ...entitled, harnessEnabled: false }, 'Harness · Off ›'],
-      [{ ...entitled, credits: { used: 5, limit: 5 } }, 'Harness · No credits ›'],
+    // [config, what the row says beside "Harness", the switch: absent, or on/off]
+    for (const [config, said, toggle] of [
+      [undefined, 'Link project', null],
+      [{ ...entitled, harnessEntitled: false }, 'Not on your plan', null],
+      [{ ...entitled, providerReady: false }, 'No model provider', null],
+      [{ ...entitled, harnessEnabled: false }, '', 'false'],
+      [{ ...entitled, credits: { used: 5, limit: 5 } }, 'No credits', null],
+      [{ ...entitled, credits: { used: 2, limit: 10, kind: 'free' } }, '8 credits', 'true'],
       [
-        { ...entitled, credits: { used: 2, limit: 10, kind: 'free' } },
-        'Harness · On · Free: 2 of 10 credits used · 8 left ›',
+        { ...entitled, credits: { used: 120, limit: 500, kind: 'trial', daysLeft: 9 } },
+        '380 credits · 9 days',
+        'true',
       ],
     ] as const) {
       views.paintHarness(config);
       expect(foot(root)?.querySelectorAll('.reticle-harness-row')).toHaveLength(1);
-      expect(foot(root)?.querySelector('[data-reticle-harness-open]')?.textContent).toBe(said);
+      expect(foot(root)?.querySelector('.reticle-harness-name')?.textContent).toBe('Harness');
+      expect(foot(root)?.querySelector('.reticle-harness-state')?.textContent).toBe(said);
+      expect(
+        foot(root)?.querySelector('[data-reticle-harness-toggle]')?.getAttribute('aria-checked') ??
+          null,
+      ).toBe(toggle);
       expect(foot(root)?.querySelector('select, input, [data-reticle-harness-run]')).toBeNull();
       expect(rows(root)).toBe(1);
     }
@@ -127,10 +135,24 @@ describe('chat views and harness access states', () => {
     expect(root.querySelector('[data-reticle-harness-switch]')).toBeNull();
   });
 
-  it("says credits used and left in one small line, the platform's numbers", () => {
+  it('switches the Harness from the Agent Log, without opening a page', () => {
+    const { root, views, drive, onOpenChat } = mountViews();
+    views.paintAccount({ signedIn: true });
+    views.paintHarness(entitled);
+    root.querySelector<HTMLElement>('[data-reticle-harness-toggle]')?.click();
+    expect(drive.setHarness).toHaveBeenCalledWith(false);
+    expect(onOpenChat).not.toHaveBeenCalled();
+    views.paintHarness({ ...entitled, harnessEnabled: false });
+    root.querySelector<HTMLElement>('[data-reticle-harness-toggle]')?.click();
+    expect(drive.setHarness).toHaveBeenLastCalledWith(true);
+  });
+
+  it("says the credits once: compact in the row, the platform's sentence on hover and on the page", () => {
     const { root, views } = mountViews();
     const meta = (): string | null | undefined =>
-      root.querySelector('[data-reticle-foot-meta]')?.textContent;
+      root.querySelector('[data-reticle-harness-page-meta]')?.textContent;
+    const title = (): string | null | undefined =>
+      root.querySelector('[data-reticle-harness-open]')?.getAttribute('title');
     views.paintAccount({ signedIn: true });
     views.paintHarness({ ...entitled, credits: { used: 294, limit: 5000 } });
     expect(meta()).toBe('294 of 5,000 credits used · 4,706 left');
@@ -141,6 +163,8 @@ describe('chat views and harness access states', () => {
       credits: { used: 120, limit: 500, kind: 'trial', daysLeft: 9 },
     });
     expect(meta()).toBe('Trial: 120 of 500 credits used · 380 left · 9 days left');
+    expect(title()).toBe('Trial: 120 of 500 credits used · 380 left · 9 days left');
+    expect(root.querySelector('[data-reticle-foot-meta]')).toBeNull();
   });
 
   describe('the coverage gate', () => {
@@ -186,7 +210,7 @@ describe('chat views and harness access states', () => {
       views.paintHarness({ ...entitled, harnessEnabled: false }, { percent: 87, unlocked: true });
       expect(root.textContent).toContain('Setup score 87%. Harness is off.');
       root.querySelector<HTMLElement>('[data-reticle-harness-switch]')?.click();
-      expect(drive.switchOn).toHaveBeenCalledTimes(1);
+      expect(drive.setHarness).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -196,7 +220,7 @@ describe('chat views and harness access states', () => {
     views.paintHarness({ ...entitled, credits: { used: 500, limit: 500 } });
     expect(root.textContent).toContain('No Harness credits left');
     expect(root.querySelector('.reticle-harness-link')?.textContent).toContain('Get more');
-    expect(root.querySelector('[data-reticle-foot-meta]')?.textContent).toBe('');
+    expect(root.querySelector('[data-reticle-harness-page-meta]')?.textContent).toBe('');
   });
 
   /*
@@ -323,7 +347,7 @@ describe('chat views and harness access states', () => {
     views.paintHarness({ ...entitled, harnessEnabled: false });
     expect(root.textContent).toContain('Harness is off');
     root.querySelector<HTMLElement>('[data-reticle-harness-switch]')?.click();
-    expect(drive.switchOn).toHaveBeenCalledTimes(1);
+    expect(drive.setHarness).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Notes controls in one compact row', () => {

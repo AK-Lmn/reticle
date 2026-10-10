@@ -543,7 +543,10 @@ export class PresenterSettingsPanel {
       setHiIcon(closeBtn, PresenterIcon.REMOVE, PRESENTER_ICON_SIZE.MIN);
     }
     if (this.#btn !== undefined) {
+      // The icon is set here; the name under it, from the shell's markup, is kept across the swap.
+      const label = this.#btn.querySelector('.reticle-nav-label');
       setHiIcon(this.#btn, PresenterIcon.GEAR, PRESENTER_ICON_SIZE.TOOLBAR);
+      if (null !== label) this.#btn.append(label);
       this.#btn.addEventListener('click', (e) => {
         e.stopPropagation();
         // A tab selects its page, like the four beside it; the panel's × closes it.

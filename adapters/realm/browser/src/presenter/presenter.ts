@@ -76,7 +76,6 @@ import { PresenterIcon, PRESENTER_ICON_SIZE, hiIcon } from './icons/presenter-ic
 import { renderTally } from './chrome/presenter-tally.js';
 import {
   CONTROLS_BANNER_HTML,
-  CONTROLS_FLOWS_HTML,
   CONTROLS_MARKS_HTML,
   CONTROLS_FOOT_HTML,
   CONTROLS_STATUS_HTML,
@@ -327,7 +326,7 @@ export class Presenter {
       <div data-reticle-glow></div>
       <div data-reticle-cursor></div>
       <div data-reticle-ring></div>
-      ${HudShell.dockHtml(actStrip, PLAN_HTML, DATA_RETICLE_LOG, CONTROLS_MARKS_HTML + CONTROLS_FLOWS_HTML, CONTROLS_FOOT_HTML)}`;
+      ${HudShell.dockHtml(actStrip, PLAN_HTML, DATA_RETICLE_LOG, CONTROLS_MARKS_HTML, CONTROLS_FOOT_HTML)}`;
     document.body.appendChild(root);
     this.#root = root;
     this.#glow = root.querySelector<HTMLElement>('[data-reticle-glow]') ?? undefined;

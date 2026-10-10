@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { AGENT_LINK_HTML, AgentLinkView, agentsLine } from './presenter-agent-link.js';
+import { AGENT_LINK_HTML, AgentLinkView } from './presenter-agent-link.js';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -24,23 +24,28 @@ describe('the coding agent, from the HUD', () => {
     expect(spot(root)?.hidden).toBe(true);
   });
 
-  it('with no agent, says so and offers the prompt to paste into one', () => {
+  it('with no agent, says so with a grey dot and offers the prompt to paste into one', () => {
     const { root, view } = mount();
     view.paint({ agents: [], notes: [] });
     expect(spot(root)?.hidden).toBe(false);
-    expect(root.querySelector('[data-reticle-agent-none]')?.textContent).toContain(
+    expect(root.querySelector('.reticle-agent-row')?.getAttribute('data-connected')).toBe('0');
+    expect(root.querySelector('[data-reticle-agent-said]')?.textContent).toBe(
       'No coding agent connected',
     );
-    expect(root.querySelector('[data-reticle-agent-copy]')?.getAttribute('aria-label')).toBe(
-      'Copy prompt for your coding agent',
-    );
+    const copy = root.querySelector<HTMLElement>('[data-reticle-agent-copy]');
+    expect(copy?.hidden).toBe(false);
+    expect(copy?.getAttribute('aria-label')).toBe('Copy prompt for your coding agent');
   });
 
-  it('with an agent connected, has no box to type into: the agent is talked to in its own window', () => {
+  it('with an agent connected, names it beside a green dot and has nothing to type into', () => {
     const { root, view } = mount();
     view.paint({ agents: ['Claude Code'], notes: [] });
-    expect(spot(root)?.hidden).toBe(true);
+    expect(spot(root)?.hidden).toBe(false);
+    expect(root.querySelector('.reticle-agent-row')?.getAttribute('data-connected')).toBe('1');
+    expect(root.querySelector('[data-reticle-agent-said]')?.textContent).toBe(
+      'Claude Code connected',
+    );
+    expect(root.querySelector<HTMLElement>('[data-reticle-agent-copy]')?.hidden).toBe(true);
     expect(root.querySelector('input')).toBeNull();
-    expect(agentsLine(['Claude Code'])).toBe('Connected: Claude Code');
   });
 });
