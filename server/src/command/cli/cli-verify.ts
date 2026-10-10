@@ -67,7 +67,8 @@ import {
   SyncOutcome,
   type CloudConfig,
 } from '@/memory/cloud/cloud-sync.js';
-import { linkedRunsCloudPort, readDashboardUrl } from '@/memory/cloud/cloud-config.js';
+import { linkedRunsCloudPort } from '@/memory/cloud/cloud-config.js';
+import { readDashboardUrl } from '@/memory/project/sync-status.js';
 import { seeRunLine } from '@/memory/project/sync-status.js';
 import { homedir } from 'node:os';
 import { ReticleRunner, type VerifyProgressListener } from '@/judgement/runs/reticle-runner.js';

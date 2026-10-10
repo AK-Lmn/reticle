@@ -128,6 +128,10 @@ export const EXPLORE_TOOLS: ToolDef[] = [
       checks: z.object({ held: z.number(), failed: z.number(), undecided: z.number() }).optional(),
       /** The runs this drive syncs as (`harness-<uuid>`): what the platform links its check to. */
       runIds: z.array(z.string()).optional(),
+      /** The run's page on the dashboard, when the project is linked. Give it to the user. */
+      runUrl: z.string().optional(),
+      /** The credits the platform says this run spent. */
+      creditsSpent: z.number().optional(),
       /** One verdict per requested goal, checked by the harness itself. Only `yes` is proved. */
       goals: z
         .array(z.object({ text: z.string(), verified: z.string(), reason: z.string().optional() }))
@@ -369,6 +373,7 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     goals,
     planLines,
     runIds,
+    runUrl,
     journeys,
   } = explored;
   return {
@@ -382,6 +387,9 @@ function exploreReport(explored: ExploreResult): Record<string, unknown> {
     checks: checkTally(drive.toolCalls),
     ...(drive.goalMet === undefined ? {} : { goalMet: drive.goalMet }),
     ...(runIds === undefined ? {} : { runIds: [...runIds] }),
+    // Where the user sees this run, and what it cost: the two things an agent is asked after a run.
+    ...(runUrl === undefined ? {} : { runUrl }),
+    ...(drive.creditsSpent === undefined ? {} : { creditsSpent: drive.creditsSpent }),
     ...(journeys === undefined
       ? {}
       : { journeys: journeys.map((j) => ({ title: j.title, status: j.status })) }),

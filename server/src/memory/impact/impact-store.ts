@@ -11,7 +11,7 @@ import {
   unsentFlowCount,
   unsentRunCount,
 } from '@/memory/cloud/unsynced-roots.js';
-import { readDashboardUrl } from '@/memory/cloud/cloud-config.js';
+import { readDashboardUrl } from '@/memory/project/sync-status.js';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { readAccountState } from '@/memory/cloud/account-state.js';

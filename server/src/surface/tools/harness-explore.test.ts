@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ReticleEnv, Verified } from '@reticlehq/core';
 import { driveRunsFrom } from '@/judgement/runs/drive-run.js';
@@ -80,6 +83,32 @@ describe('exploring an app', () => {
     expect(result.unverifiedFlows).toEqual(['checkout']);
     // The run it syncs as, so the platform's chat can fold that run into the check it asked for.
     expect(result.runIds).toEqual([expect.stringMatching(/^harness-[0-9a-f-]{36}$/)]);
+  });
+
+  /*
+   * Asked after a Harness run, agents gave no link to it (0 of 16 real runs): the answer carried run
+   * ids and nothing a person could open. A linked project's run comes back with its dashboard page.
+   */
+  it("gives the run's dashboard page when the project is linked, and no link when it is not", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'reticle-runurl-'));
+    mkdirSync(join(root, '.reticle'), { recursive: true });
+    writeFileSync(
+      join(root, '.reticle', 'cloud.json'),
+      JSON.stringify({ dashboardUrl: 'http://localhost:16580/issues?project=shop' }),
+    );
+    const linked = { ...depsWithFlows([]), reticleRoot: join(root, '.reticle') } as ToolDeps;
+    const result = await exploreApp(
+      linked,
+      {},
+      { driver: finishing(''), skipPlatformConfig: true },
+    );
+    expect(result.runUrl).toBe(`http://localhost:16580/runs/${result.runIds?.[0] ?? ''}`);
+    const unlinked = await exploreApp(
+      depsWithFlows([]),
+      {},
+      { driver: finishing(''), skipPlatformConfig: true },
+    );
+    expect(unlinked.runUrl).toBeUndefined();
   });
 
   it('records the persona as the intent of a saved flow that has none, whoever saved it', async () => {

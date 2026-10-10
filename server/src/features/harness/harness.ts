@@ -139,12 +139,18 @@ export interface HarnessResult {
    * held are not the goal reached: "open each section" passed on two presses of Sign in.
    */
   goalMet?: boolean;
+  /** The credits the platform says the drive spent; absent for a local model or an older platform. */
+  creditsSpent?: number;
 }
 
-/** The finish's judgement of the goal, when it carried one. */
-function goalMetOf(args: Record<string, unknown>): { goalMet?: boolean } {
+/** The finish's judgement of the goal, and what the drive cost, when it carried them. */
+function goalMetOf(args: Record<string, unknown>): { goalMet?: boolean; creditsSpent?: number } {
   const met = args['goalMet'];
-  return 'boolean' === typeof met ? { goalMet: met } : {};
+  const spent = args['creditsSpent'];
+  return {
+    ...('boolean' === typeof met ? { goalMet: met } : {}),
+    ...('number' === typeof spent ? { creditsSpent: spent } : {}),
+  };
 }
 
 /**

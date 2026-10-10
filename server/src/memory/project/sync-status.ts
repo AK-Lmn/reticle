@@ -13,6 +13,7 @@
 import { diskSource, readCloudState } from '@/memory/cloud/sync-disk.js';
 import { hashPayload } from '@/memory/cloud/sync-hash.js';
 import type { CloudSyncState } from '@/memory/cloud/sync-cycle.js';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ReticleDir } from '@reticlehq/core';
 import { resolveProjectCloud } from '@/memory/cloud/cloud-config.js';
@@ -93,6 +94,27 @@ function createdAtOf(payload: unknown): number {
       ? (payload as Record<string, unknown>)['createdAt']
       : undefined;
   return 'number' === typeof at ? at : 0;
+}
+
+/**
+ * Where this project's dashboard lives, if `reticle link` recorded one.
+ *
+ * Read from the link file rather than derived from the API url, because the API origin and the
+ * console origin are different hosts in every deployment that is not a laptop. Synchronous and
+ * best-effort, like every other read in this file: a missing or malformed link file means no link
+ * in the HUD, never a failed tool call.
+ */
+export function readDashboardUrl(reticleRoot: string): string | undefined {
+  try {
+    const raw: unknown = JSON.parse(
+      readFileSync(join(reticleRoot, ReticleDir.CLOUD_LINK_FILE), 'utf8'),
+    );
+    if ('object' !== typeof raw || null === raw) return undefined;
+    const value = (raw as Record<string, unknown>)['dashboardUrl'];
+    return 'string' === typeof value && value.length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The dashboard's page for one run: the console's `/runs/:runId` route, at the dashboard's origin. */

@@ -64,6 +64,8 @@ interface TurnReply {
   summary?: string;
   goalMet?: boolean;
   usage?: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  /** On the last turn: the credits the whole run spent. Absent from an older platform. */
+  creditsSpent?: number;
 }
 
 /** Where to reach the platform, as which key, and for which free drive when there is one. */
@@ -193,6 +195,9 @@ export function serverDriver(options: ServerDriverOptions): ModelDriver {
               args: {
                 summary: reply.summary ?? reply.text,
                 ...('boolean' === typeof reply.goalMet ? { goalMet: reply.goalMet } : {}),
+                ...('number' === typeof reply.creditsSpent
+                  ? { creditsSpent: reply.creditsSpent }
+                  : {}),
               },
             },
           ],

@@ -30,6 +30,7 @@ import { CUSTOM_DRIVER_NAME, SERVER_DRIVER } from '@/features/harness/drivers.js
 import { buildDomainModel } from '@/judgement/domain/domain-model.js';
 import { readContract } from '@/memory/project/dir/reticle-dir.js';
 import { sessionRoot, sessionTarget } from '@/memory/project/session-root.js';
+import { dashboardRunUrl, readDashboardUrl } from '@/memory/project/sync-status.js';
 import { buildHarnessPlan, planAsText, withoutReplays, type HarnessPlan } from './harness-plan.js';
 import { allSessionIntents } from '@/memory/intent/open-intents.js';
 import { fetchPlatformConfig, type ConfigFetch } from '@/features/harness/platform-config.js';
@@ -138,6 +139,8 @@ export interface ExploreResult {
   driverName: string;
   /** The run this drive syncs as (`harness-<id>`), so a caller can find it on the platform. */
   runIds?: readonly string[];
+  /** The run's page on the dashboard, when the project is linked. */
+  runUrl?: string;
   /** How each journey of a platform plan ended, worst lane first. Absent for an unplanned drive. */
   journeys?: readonly JourneyResult[];
 }
@@ -359,6 +362,7 @@ export async function exploreApp(
     unverifiedFlows,
     goals,
     ...(runId === undefined ? {} : { runIds: [runId] }),
+    ...runUrlFor(deps, options.sessionId, runId),
   };
 }
 
@@ -384,6 +388,21 @@ export function narrator(deps: ToolDeps, options: ExploreOptions): (text: string
 }
 
 /** What this project's memory says must hold, in its own words. Nothing recorded is none. */
+/** The run's page on the dashboard, when the tab's project is linked; nothing when it is not. */
+function runUrlFor(
+  deps: ToolDeps,
+  sessionId: string | undefined,
+  runId: string | undefined,
+): { runUrl?: string } {
+  if (runId === undefined) return {};
+  try {
+    const dashboard = readDashboardUrl(sessionRoot(deps, sessionId));
+    return dashboard === undefined ? {} : { runUrl: dashboardRunUrl(dashboard, runId) };
+  } catch {
+    return {}; // no tab, no project: the run is still reported, without a link
+  }
+}
+
 export async function productRules(deps: ToolDeps, sessionId?: string): Promise<string[]> {
   try {
     return (await allSessionIntents(deps, sessionId)).map((intent) => intent.statement);

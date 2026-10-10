@@ -75,6 +75,25 @@ describe('the platform drives, this machine executes', () => {
     });
   });
 
+  it('carries the credits the platform says the run spent onto the drive', async () => {
+    const { fetch } = platform({
+      '/v1/harness/runs': () => ({ runId: 'hr_2' }),
+      '/v1/harness/runs/hr_2/turn': () => ({
+        turn: 0,
+        calls: [],
+        text: '',
+        done: true,
+        status: 'finished',
+        creditsSpent: 3,
+      }),
+    });
+    const result = await runHarness(
+      serverDriver({ url: 'https://p.test', apiKey: 'rk_live_x', fetch }),
+      toolset([]),
+    );
+    expect(result.creditsSpent).toBe(3);
+  });
+
   /** The Harness decides on the platform; a password it types must never travel there. */
   it('sends a secret field by name only, and fills in its value on this machine', async () => {
     const { asked, fetch } = platform({
