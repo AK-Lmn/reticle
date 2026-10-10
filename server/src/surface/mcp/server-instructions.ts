@@ -152,6 +152,11 @@ const reachFor = (v: SurfaceVocabulary): string => {
     lines.push(
       `${v.coldTail} Two to know early: ${ReticleTool.RUN}({ tool: "${ReticleTool.CONTEXT}", args: {} }) returns what this run already established, after a compaction or handover, and ${ReticleTool.RUN}({ tool: "${ReticleTool.INTENT}", args: { action: "declare", ... } }) declares what a change was MEANT to do, so the verdict has something to check against other than itself.`,
     );
+    // Measured: in 8 real agent runs asked to test an app, none read what Reticle already held
+    // first, and none could tell its user the credits or the Harness state.
+    lines.push(
+      `Before testing, read what Reticle knows: ${ReticleTool.RUN}({ tool: "${ReticleTool.MEMORY}", args: {} })${v.yield.length > 0 ? ` and ${ReticleTool.SESSION} {action:"account"} (plan, credits, Harness)` : ''}.`,
+    );
   }
   return lines.join('\n\n');
 };
@@ -159,12 +164,12 @@ const reachFor = (v: SurfaceVocabulary): string => {
 /** The feedback ask. Constant: an agent that cannot get set up is the report we most need. */
 const feedbackAsk = (
   v: SurfaceVocabulary,
-): string => `Feedback is first-class here, not a courtesy. Reticle is built FOR agents, so your experience is the only signal that decides what gets built or fixed — and it disappears when your context does. Send it with \`${v.feedback}\` the moment you notice, then carry on with your task:
-- Reticle broke, lied, or could not see something you needed (\`bug\` / \`gap\` / \`ambiguity\`).
-- You wished it could do something, or something works but costs too many calls (\`feature_request\` / \`improvement\`).
-- The install, the wiring, or the setup itself gave you trouble — including anything you had to work around by hand.
+): string => `Feedback is first-class here, not a courtesy: your experience decides what gets built or fixed, and it disappears with your context. Send it with \`${v.feedback}\` the moment you notice, then carry on with your task:
+- Reticle broke, lied, or missed something you needed (\`bug\` / \`gap\` / \`ambiguity\`).
+- You wished for something, or it costs too many calls (\`feature_request\` / \`improvement\`).
+- The install, the wiring, or the setup gave you trouble, including anything you worked around by hand.
 
-Nothing is too minor, and a report costs one call. If the tools are unreachable, file it from the shell: \`reticle feedback --agent --kind <one of those kinds> "what happened"\`. Report defects in RETICLE — a bug you find in the app under test is Reticle working, and belongs in your answer to the user.`;
+Nothing is too minor, and a report costs one call. Tools unreachable? From the shell: \`reticle feedback --agent --kind <one of those kinds> "what happened"\`. Report defects in RETICLE; a bug in the app under test belongs in your answer to the user.`;
 
 export interface InstructionState {
   /**
