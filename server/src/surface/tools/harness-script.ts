@@ -245,6 +245,7 @@ async function runPlan(
   const ports: ScriptPorts = {
     parallel: leasing ? Math.max(1, Math.min(script.lanes.length, pool.capacity(), MAX_LANES)) : 1,
     stopped: () => off || true === options.stopped?.(),
+    ...(true === options.confirmDangerous ? { confirmDangerous: true } : {}),
     lease: async () => {
       if (!leasing) return { ...pinned(options), release: () => Promise.resolve() };
       const acquire = () => acquireLeasedSession(pool, deps.sessions, appUrl, projectId);

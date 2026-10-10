@@ -71,6 +71,11 @@ import { getSessionMetrics } from '@/telemetry/session-metrics.js';
 export interface ExploreOptions {
   /** Who to be, or what to accomplish. Appended to the standing instruction. */
   focus?: string;
+  /**
+   * A person started this run (Run plan from the dashboard) and acknowledged the saved flows' own
+   * destructive steps: a planned replay may take them. Never a step the model decides.
+   */
+  confirmDangerous?: boolean;
   /** Texts the drive must leave on the page. Default: whatever `focus` quoted. See goals.ts. */
   goals?: readonly string[];
   /** The outcome the journey must end in, as a reticle_assert predicate. See `checkExpect`. */

@@ -369,12 +369,18 @@ function statusOf(stopReason: StopReason): DriveStatus {
 /** The shipped drive: `exploreApp`, steered by the registry, reported as the tool's answer. */
 const exploreDrive: ExploreDrive = async (deps, env, args, harness, control) => {
   const persona = args['persona'];
+  // Only a run a person started may carry the acknowledgement; an agent's drive keeps the guard.
+  const confirmDangerous =
+    true === args['confirmDangerous'] &&
+    DriveOrigin.AGENT !==
+      (Object.values(DriveOrigin).find((o) => o === args['origin']) ?? DriveOrigin.AGENT);
   const maxSteps = args['maxSteps'];
   const sessionId = args['sessionId'];
   const expect = args['expect'];
   const planId = args['planId'];
   const explored = await exploreApp(deps, env, {
     ...('string' === typeof planId ? { planId } : {}),
+    ...(confirmDangerous ? { confirmDangerous } : {}),
     ...('string' === typeof persona ? { focus: persona } : {}),
     ...('number' === typeof maxSteps ? { maxSteps } : {}),
     ...('string' === typeof sessionId ? { sessionId } : {}),
@@ -534,6 +540,8 @@ export async function driveForChat(
   goal: string,
   sessionId?: string,
   planId?: string,
+  /** The person who started it acknowledged the saved flows' destructive steps. */
+  confirmDangerous?: boolean,
 ): Promise<RemoteDriveOutcome> {
   const explore = EXPLORE_TOOLS.find((tool) => ReticleTool.VERIFY_EXPLORE === tool.name);
   if (explore === undefined) throw new Error('this build has no Harness drive');
@@ -544,6 +552,7 @@ export async function driveForChat(
         ...(planId === undefined ? { persona: goal } : { planId }),
         origin: DriveOrigin.CHAT,
         ...(sessionId === undefined ? {} : { sessionId }),
+        ...(true === confirmDangerous ? { confirmDangerous } : {}),
       }),
     ),
   );

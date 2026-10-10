@@ -232,7 +232,12 @@ export function journeyResults(view: PlanView): JourneyResult[] {
     for (const card of lane.journeys) {
       const seen = byId.get(card.id);
       if (seen === undefined || SEVERITY.indexOf(card.status) < SEVERITY.indexOf(seen.status))
-        byId.set(card.id, { id: card.id, title: card.title, status: card.status });
+        byId.set(card.id, {
+          id: card.id,
+          title: card.title,
+          status: card.status,
+          ...(card.why === undefined ? {} : { line: card.why }),
+        });
     }
   return [...byId.values()];
 }

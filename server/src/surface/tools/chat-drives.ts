@@ -258,7 +258,7 @@ export function startChatDrives(
     },
     drive: async (goal, sessionId, spec) => {
       const url = sessions.list().find((tab) => tab.sessionId === sessionId)?.url;
-      const outcome = await driveForChat(deps, goal, sessionId, spec?.plan);
+      const outcome = await driveForChat(deps, goal, sessionId, spec?.plan, spec?.confirmDangerous);
       return url === undefined ? outcome : { ...outcome, url };
     },
     // The leased tab, or a desktop window's own capture. A web tab only the SDK reaches has no camera.

@@ -91,6 +91,7 @@ const SPEC_FIELDS = {
   maxSteps: z.number().int().min(1).max(STEPS_MAX),
   record: z.boolean(),
   plan: z.string().min(1).max(PLAN_ID_MAX),
+  confirmDangerous: z.boolean(),
 } as const;
 
 export interface DriveSpec {
@@ -105,6 +106,12 @@ export interface DriveSpec {
   record?: boolean;
   /** A plan the platform saved: run it as it stands instead of asking for a new one. */
   plan?: string;
+  /**
+   * A person started this run (Run plan, Re-verify, Run suite) and so acknowledged the saved flows'
+   * own destructive steps: their replays may take them. A fresh action the model decides keeps the
+   * guard whatever this says.
+   */
+  confirmDangerous?: boolean;
 }
 
 export interface SpecIgnored {

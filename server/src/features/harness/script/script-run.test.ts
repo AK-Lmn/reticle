@@ -18,6 +18,8 @@ function fakePorts(
     parallel?: number;
     checks?: string;
     goalMet?: boolean;
+    /** Flows with a destructive step: refused unless the replay acknowledges it. */
+    guarded?: string[];
   } = {},
 ) {
   const calls: Call[] = [];
@@ -49,6 +51,13 @@ function fakePorts(
           calls.push({ lane: sessionId, name, args });
           await new Promise((r) => setTimeout(r, 2));
           if (ReticleTool.FLOW_REPLAY === name) {
+            if (
+              true === options.guarded?.includes(String(args['flowName'])) &&
+              true !== args['confirmDangerous']
+            )
+              throw new Error(
+                'potentially destructive action blocked; retry with args.confirmDangerous=true',
+              );
             const failed = true === options.failing?.includes(String(args['flowName']));
             return { status: failed ? ReplayStatus.DRIFT : ReplayStatus.OK };
           }
@@ -439,5 +448,34 @@ describe('a journey that runs on how another ended', () => {
       dashboard: ScriptStatus.NOT_TAKEN,
       audit: ScriptStatus.PASSED,
     });
+  });
+});
+
+/*
+ * A "Place order" flow run from the dashboard was badged "failed" on the plan page: the guard had
+ * skipped it. And a person's Run plan could never acknowledge it.
+ */
+describe('a replay the destructive-action guard stops', () => {
+  const order = script({
+    version: 1,
+    source: 'local',
+    journeys: [{ id: 'order', title: 'Place order', steps: [replay('place-order')] }],
+    lanes: [{ id: 'A', journeys: ['order'] }],
+  });
+
+  it('is not taken, with the reason, never failed', async () => {
+    const fake = fakePorts({ guarded: ['place-order'] });
+    const run = await runScript(order, fake.ports);
+    const card = run.view.lanes[0]?.journeys[0];
+    expect(card?.status).toBe(ScriptStatus.NOT_TAKEN);
+    expect(card?.steps[0]?.status).toBe(ScriptStatus.NOT_TAKEN);
+    expect(card?.why).toContain('destructive');
+    expect(run.lines[0]).toContain('not-taken');
+  });
+
+  it('runs when the person who started it acknowledged it', async () => {
+    const fake = fakePorts({ guarded: ['place-order'] });
+    const run = await runScript(order, { ...fake.ports, confirmDangerous: true });
+    expect(run.view.lanes[0]?.journeys[0]?.status).toBe(ScriptStatus.PASSED);
   });
 });

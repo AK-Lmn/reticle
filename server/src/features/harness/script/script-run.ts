@@ -15,6 +15,7 @@ import {
   ScriptStatus,
   Verified,
   asRecord,
+  asString,
   type PlanView,
 } from '@reticlehq/core';
 import {
@@ -47,6 +48,11 @@ export interface ScriptPorts {
   parallel: number;
   /** A person switched autonomous driving off. */
   stopped(): boolean;
+  /**
+   * A person started this run and acknowledged the saved flows' destructive steps: replays take
+   * them. Never applied to a step the model decides.
+   */
+  confirmDangerous?: boolean;
 }
 
 export interface ScriptRun {
@@ -150,18 +156,22 @@ export async function runScript(
         // This journey's own drives: lanes run side by side, so a slice of the shared list after the
         // await could hold another lane's missed goal and blame it on this journey.
         const own: HarnessResult[] = [];
-        const ok = await runJourney(journey, card.steps, tools, ports, own, tell, () => {
+        const ran = await runJourney(journey, card.steps, tools, ports, own, tell, () => {
           stopped = true;
         });
+        const ok = ran.ok;
         // A drive the platform cut off (credits gone, a refusal, a 5xx) judged nothing: blocked, and
         // its reason said, never "failed" over an app nobody finished driving.
         const cut = own.find((d) => StopReason.BROKEN === d.stopReason);
         if (cut !== undefined) broken.set(lane.id, cut.error ?? StopReason.BROKEN);
         card.status = ok
           ? ScriptStatus.PASSED
-          : cut === undefined
-            ? ScriptStatus.FAILED
-            : ScriptStatus.BLOCKED;
+          : cut !== undefined
+            ? ScriptStatus.BLOCKED
+            : ran.notTaken !== undefined
+              ? ScriptStatus.NOT_TAKEN
+              : ScriptStatus.FAILED;
+        if (ran.notTaken !== undefined) card.why = ran.notTaken;
         drives.push(...own);
         if (!ok && own.some((d) => false === d.goalMet)) goalMissed.add(card);
         // A conditional journey that failed leaves the lane as it found it: it was a side road.
@@ -201,7 +211,7 @@ export async function runScript(
           ? broken.get(lane.id)
           : goalMissed.has(card)
             ? GOAL_NOT_REACHED
-            : undefined;
+            : card.why;
       return `${mark(card.status)} ${lane.id} · ${card.title} — ${card.status}${why === undefined ? '' : ` (${why.slice(0, 160)})`}`;
     }),
   );
@@ -218,7 +228,7 @@ async function runJourney(
   drives: HarnessResult[],
   tell: () => void,
   stop: () => void,
-): Promise<boolean> {
+): Promise<{ ok: boolean; notTaken?: string }> {
   const checkpoints = new Map<string, { flow: string; to: number }>();
   for (const [index, step] of journey.steps.entries()) {
     const card = cards[index];
@@ -226,29 +236,48 @@ async function runJourney(
     if (ports.stopped()) {
       card.status = ScriptStatus.BLOCKED;
       tell();
-      return false;
+      return { ok: false };
     }
     card.status = ScriptStatus.RUNNING;
     tell();
     let ok: boolean;
-    if (ScriptStepKind.CHECKPOINT === step.kind) {
-      checkpoints.set(step.id, step.reenter);
-      ok = true;
-    } else if (ScriptStepKind.BRANCH === step.kind) {
-      ok = await runBranch(step, checkpoints.get(step.at), tools, ports, drives, stop);
-    } else {
-      ok = await runLeaf(step, tools, ports, drives, stop);
+    let notTaken: string | undefined;
+    try {
+      if (ScriptStepKind.CHECKPOINT === step.kind) {
+        checkpoints.set(step.id, step.reenter);
+        ok = true;
+      } else if (ScriptStepKind.BRANCH === step.kind) {
+        ok = await runBranch(step, checkpoints.get(step.at), tools, ports, drives, stop);
+      } else {
+        ok = await runLeaf(step, tools, ports, drives, stop);
+      }
+    } catch (error) {
+      if (!(error instanceof StepNotTaken)) throw error;
+      ok = false;
+      notTaken = error.message;
     }
-    card.status = ok ? ScriptStatus.PASSED : ScriptStatus.FAILED;
+    card.status = ok
+      ? ScriptStatus.PASSED
+      : notTaken === undefined
+        ? ScriptStatus.FAILED
+        : ScriptStatus.NOT_TAKEN;
     tell();
     if (!ok) {
       for (const rest of cards.slice(index + 1)) rest.status = ScriptStatus.BLOCKED;
       tell();
-      return false;
+      return notTaken === undefined ? { ok: false } : { ok: false, notTaken };
     }
   }
-  return true;
+  return { ok: true };
 }
+
+/** The guard stopped a destructive step nobody acknowledged: the step was not taken, not failed. */
+class StepNotTaken extends Error {}
+
+/** What the guard's refusal names, as `drive-report.ts` reads it too. */
+const DESTRUCTIVE_REFUSAL = 'confirmDangerous';
+const MSG_NOT_TAKEN =
+  'not taken: a step the flow marks destructive needs a person to acknowledge it (Run plan, Re-verify)';
 
 /**
  * Every case drives from the checkpoint. The first starts where the journey already is; each later
@@ -294,6 +323,8 @@ async function runLeaf(
         flowName: step.flow,
         ...(step.at === undefined ? {} : { at: step.at }),
         ...(step.to === undefined ? {} : { to: step.to }),
+        // The flow's own steps, acknowledged by the person who started the run.
+        ...(true === ports.confirmDangerous ? { [DESTRUCTIVE_REFUSAL]: true } : {}),
       });
     case ScriptStepKind.ASSERT:
       return holds(tools, step.predicate);
@@ -326,7 +357,12 @@ async function runLeaf(
 }
 
 async function replay(tools: HarnessToolset, args: Record<string, unknown>): Promise<boolean> {
-  return ReplayStatus.OK === asRecord(await call(tools, ReticleTool.FLOW_REPLAY, args))['status'];
+  const result = asRecord(await call(tools, ReticleTool.FLOW_REPLAY, args));
+  if (ReplayStatus.OK === result['status']) return true;
+  const error = result['error'];
+  const message = asString(error) ?? asString(asRecord(error)['message']) ?? '';
+  if (message.includes(DESTRUCTIVE_REFUSAL)) throw new StepNotTaken(MSG_NOT_TAKEN);
+  return false;
 }
 
 async function holds(tools: HarnessToolset, predicate: unknown): Promise<boolean> {
