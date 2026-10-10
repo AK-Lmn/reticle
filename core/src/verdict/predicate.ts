@@ -59,6 +59,8 @@ export type Predicate =
        * then both must hold — `satisfies` narrows, it never excuses.
        */
       satisfies?: PropertyAssertion;
+      /** Match `contains` regardless of case. Off by default: a check compares case exactly. */
+      ignoreCase?: boolean;
     }
   | {
       kind: typeof PredicateKind.NET;
@@ -276,6 +278,11 @@ function predicateUnion() {
         scope: z.string().optional(),
         self: z.boolean().optional(),
         satisfies: propertyAssertionSchema.optional(),
+        /**
+         * Match `contains` regardless of case. Off by default: a check that passed "Saved Priya"
+         * against "Saved priya" could never catch a capitalisation defect.
+         */
+        ignoreCase: z.boolean().optional(),
       })
       .strict(),
     z

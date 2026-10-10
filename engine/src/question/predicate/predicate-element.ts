@@ -419,3 +419,30 @@ export function withTextProperty(
     evidence: described,
   };
 }
+
+/**
+ * The element query a text predicate is evaluated through — one builder for the verdict and its
+ * baseline, so the two cannot disagree about what text was asked for.
+ *
+ * `matchCase` unless the predicate opts out: a check that matched "Saved Priya" against "Saved
+ * priya" could never catch a capitalisation defect. An undefined `contains` must not reach the query
+ * as `text: undefined` — that is a locator asking for the empty string.
+ */
+export function textPredicateQuery(predicate: {
+  contains?: string | undefined;
+  ignoreCase?: boolean | undefined;
+  scope?: string | undefined;
+  self?: boolean | undefined;
+}): ElementQuery {
+  return {
+    ...(undefined === predicate.contains
+      ? {}
+      : {
+          text: predicate.contains,
+          ...(true === predicate.ignoreCase ? {} : { matchCase: true }),
+        }),
+    ...(undefined === predicate.scope
+      ? {}
+      : { scope: predicate.scope, ...(true === predicate.self ? { self: true } : {}) }),
+  };
+}

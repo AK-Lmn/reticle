@@ -71,6 +71,12 @@ function fuzzyVisibleText(actual: string, expected: string): boolean {
     .includes(normaliseVisibleText(expected).toLowerCase());
 }
 
+/** The text rule a query asked for: case-exact when it is a check, forgiving when it is a search. */
+function textMatches(actual: string, query: ElementQuery, expected: string): boolean {
+  if (true !== query.matchCase) return fuzzyVisibleText(actual, expected);
+  return normaliseVisibleText(actual).includes(normaliseVisibleText(expected));
+}
+
 function exactVisibleText(actual: string, expected: string): boolean {
   return normaliseVisibleText(actual) === normaliseVisibleText(expected);
 }
@@ -253,8 +259,8 @@ function queryByRoleAndName(
   );
 }
 
-function queryByText(container: HTMLElement, value: string): HTMLElement[] {
-  return elementsUnder(container).filter((el) => fuzzyVisibleText(directText(el), value));
+function queryByText(container: HTMLElement, value: string, query: ElementQuery): HTMLElement[] {
+  return elementsUnder(container).filter((el) => textMatches(directText(el), query, value));
 }
 
 function queryByLabel(container: HTMLElement, value: string): HTMLElement[] {
@@ -292,7 +298,7 @@ function findIn(container: HTMLElement, query: ElementQuery): HTMLElement[] {
       case QueryBy.ROLE:
         return queryByRoleAndName(container, value, query.name);
       case QueryBy.TEXT:
-        return queryByText(container, value);
+        return queryByText(container, value, query);
       case QueryBy.LABEL:
         return queryByLabel(container, value);
       case QueryBy.PLACEHOLDER:
@@ -328,7 +334,7 @@ function findIn(container: HTMLElement, query: ElementQuery): HTMLElement[] {
   if (query.role !== undefined) {
     return queryByRoleAndName(container, query.role, query.name);
   }
-  if (query.text !== undefined) return queryByText(container, query.text);
+  if (query.text !== undefined) return queryByText(container, query.text, query);
   if (query.label !== undefined) return queryByLabel(container, query.label);
   if (query.placeholder !== undefined) return queryByPlaceholder(container, query.placeholder);
   if (query.testid !== undefined) return queryByTestId(container, query.testid);
@@ -437,7 +443,7 @@ function findCandidates(query: ElementQuery): { candidates: HTMLElement[]; scope
     // must be decided by the same evidence as the claim.
     if (
       query.text !== undefined &&
-      !fuzzyVisibleText(visibleTextOf(container, new Map()), query.text)
+      !textMatches(visibleTextOf(container, new Map()), query, query.text)
     ) {
       return { candidates: [], scopeMissing };
     }

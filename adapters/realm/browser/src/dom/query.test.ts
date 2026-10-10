@@ -39,3 +39,33 @@ describe('an unsupported query strategy throws instead of reporting zero matches
     expect(runQuery({ by: 'role', value: 'group', name: 'Shipping address' }).count).toBe(1);
   });
 });
+
+/**
+ * A text CHECK compares case exactly; a text SEARCH does not.
+ *
+ * `until { kind: "text", contains: "Saved Priya@studio.dev" }` passed against a page reading
+ * "Saved priya@studio.dev", so a capitalisation defect could never fail a check. `matchCase` is what
+ * the text predicate sends; finding an element by its words stays forgiving.
+ */
+describe('matchCase', () => {
+  it('a case-exact text query does not match different capitalisation', () => {
+    document.body.innerHTML = '<p>Saved priya@studio.dev</p>';
+    expect(runQuery({ text: 'Saved Priya@studio.dev', matchCase: true }).count).toBe(0);
+    expect(runQuery({ text: 'Saved priya@studio.dev', matchCase: true }).count).toBe(1);
+  });
+
+  it('a search without it still ignores case', () => {
+    document.body.innerHTML = '<p>Saved priya@studio.dev</p>';
+    expect(runQuery({ text: 'saved PRIYA@studio.dev' }).count).toBe(1);
+  });
+
+  it('holds for a scoped self match across the subtree', () => {
+    document.body.innerHTML = '<div id="s"><b>Saved</b> priya</div>';
+    expect(runQuery({ text: 'Saved Priya', scope: '#s', self: true, matchCase: true }).count).toBe(
+      0,
+    );
+    expect(runQuery({ text: 'Saved priya', scope: '#s', self: true, matchCase: true }).count).toBe(
+      1,
+    );
+  });
+});

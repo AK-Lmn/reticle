@@ -88,6 +88,11 @@ export const ElementQuerySchema = z
      * verification was handed back to the human. Requires `scope`.
      */
     self: z.boolean().optional(),
+    /**
+     * Compare `text` with its case intact. A search is forgiving about case; a CHECK is not — the
+     * text predicate sends this, so "Saved Priya" can fail against a page reading "Saved priya".
+     */
+    matchCase: z.boolean().optional(),
   })
   .strict();
 export type ElementQuery = z.infer<typeof ElementQuerySchema>;
