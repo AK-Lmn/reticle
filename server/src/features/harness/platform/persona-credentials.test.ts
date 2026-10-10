@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+import { personaCredentials } from './persona-credentials.js';
+import { secretNames, withSecrets } from './server-driver.js';
+
+/*
+ * A persona that gave its email and password was driven with `harness@reticle.dev` and a 401, and
+ * the password was stored in the synced run's text.
+ */
+describe('the credentials a persona names', () => {
+  const said = 'Ana signs in as ana@acme.test with password: hunter2 and opens "Just me"';
+
+  it('fills the sign-in fields from them, and never sends the password', () => {
+    const { persona, secrets } = personaCredentials(said);
+    expect(persona).toBe(
+      'Ana signs in as ana@acme.test with password: [redacted] and opens "Just me"',
+    );
+    const env = { RETICLE_SECRET_PASSWORD: 'from-env', ...secrets };
+    expect(secretNames(env)).toEqual(
+      expect.arrayContaining(['EMAIL', 'EMAIL_ADDRESS', 'PASSWORD']),
+    );
+    expect(withSecrets({ args: { value: 'reticle-secret:Email address' } }, env)).toEqual({
+      args: { value: 'ana@acme.test' },
+    });
+    expect(withSecrets({ value: 'reticle-secret:Password' }, env)).toEqual({ value: 'hunter2' });
+  });
+
+  it('reads a quoted password, and leaves a persona without one alone', () => {
+    expect(personaCredentials('password "s3cret word"').secrets['RETICLE_SECRET_PASSWORD']).toBe(
+      's3cret word',
+    );
+    expect(personaCredentials('reset the password from the menu')).toEqual({
+      persona: 'reset the password from the menu',
+      secrets: {},
+    });
+  });
+});

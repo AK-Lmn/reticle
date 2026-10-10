@@ -869,6 +869,8 @@ export function buildDriver(
       planSteps: plan.steps,
       vocabulary: plan.vocabulary,
       maxSteps,
+      // Secret fields fill from the drive's own env: a persona's credentials ride in it.
+      env,
     }),
     name: SERVER_DRIVER,
   };
