@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ReticleTool } from '@reticlehq/core';
-import { checkExpect, checkGoals, goalsIn, unprovedGoals } from './goals.js';
+import { checkExpect, checkGoals, goalsIn, goalsMet, unprovedGoals } from './goals.js';
 
 describe('the goals a drive was asked to prove (#1316)', () => {
   it('are the strings the persona quoted', () => {
@@ -111,5 +111,25 @@ describe('an outcome the journey must end in', () => {
   it('is unknown, never a pass, when the assert cannot run', async () => {
     const check = await checkExpect(() => Promise.reject(new Error('gone')), route);
     expect(check.verified).toBe('unknown');
+  });
+});
+
+/*
+ * A drive whose one click held synced as Passed while the goal it was given ("check the page shows
+ * "Compose"") was not proved. The goals decide whether the journey was done; a held click does not.
+ */
+describe('whether the drive met the goals it was given', () => {
+  it('says nothing when it was given none', () => {
+    expect(goalsMet([])).toBeUndefined();
+  });
+  it('is met only when every goal was proved', () => {
+    expect(goalsMet([{ text: 'Saved', verified: 'yes' }])).toBe(true);
+    expect(
+      goalsMet([
+        { text: 'Saved', verified: 'yes' },
+        { text: 'Compose', verified: 'unknown' },
+      ]),
+    ).toBe(false);
+    expect(goalsMet([{ text: 'Saved', verified: 'no' }])).toBe(false);
   });
 });

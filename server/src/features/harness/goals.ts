@@ -127,6 +127,11 @@ export async function checkExpect(
   return { text: `expect ${JSON.stringify(predicate).slice(0, MAX_GOAL_LENGTH)}`, verified };
 }
 
+/** Whether the drive met the goals it was given: undefined when it was given none. */
+export function goalsMet(checks: readonly GoalCheck[]): boolean | undefined {
+  return 0 === checks.length ? undefined : checks.every((c) => Verified.YES === c.verified);
+}
+
 /** One line naming the goals the drive did not prove, or undefined when it proved them all. */
 export function unprovedGoals(checks: readonly GoalCheck[]): string | undefined {
   const missed = checks.filter((c) => Verified.YES !== c.verified);

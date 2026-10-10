@@ -49,6 +49,7 @@ import { noteDriveLine } from '@/features/harness/drive-runs.js';
 import {
   checkExpect,
   checkGoals,
+  goalsMet,
   readOpening,
   goalsIn,
   type GoalCheck,
@@ -333,6 +334,8 @@ export async function exploreApp(
     ...(await checkGoals(invoke, options.goals ?? goalsIn(options.focus), opening)),
     ...(options.expect === undefined ? [] : [await checkExpect(invoke, options.expect)]),
   ];
+  // The goals it was given decide whether the journey was done, not a click that held on the way.
+  noteHarnessGoal(harnessId, goalsMet(goals));
 
   const after = await reads.flows.list();
   const reconciled = reconcileFlows(before, after, drive.toolCalls);
