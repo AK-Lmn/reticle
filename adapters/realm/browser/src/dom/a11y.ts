@@ -422,12 +422,24 @@ function stalledFade(el: Element): boolean {
 }
 
 /**
+ * The attribute an open menu or dialog stamps beside the `aria-hidden` it puts on the rest of the
+ * page (the `aria-hidden` package Radix and most kits use). That hides the page from assistive tech
+ * while the overlay is up; the page is still on screen. Read as hidden, the header's project picker
+ * and the menu it opened were graded `hidden_match` while both were on screen and focused.
+ */
+const OVERLAY_ARIA_HIDDEN = 'data-aria-hidden';
+
+function hiddenByAnOverlay(el: Element): boolean {
+  return el.hasAttribute(OVERLAY_ARIA_HIDDEN);
+}
+
+/**
  * Whether the element's OWN box hides it — one forced-style resolution, no composed ancestor
  * walk. The one ancestor reading is `hiddenInsideClosedDetails`, which consults only the nearest
  * `<details>` boundary; composing the chain is still isVisible's job.
  */
 function selfHidden(el: Element, style: CSSStyleDeclaration | null): boolean {
-  if ('true' === el.getAttribute('aria-hidden')) return true;
+  if ('true' === el.getAttribute('aria-hidden') && !hiddenByAnOverlay(el)) return true;
   if (isHtmlElement(el) && el.hidden) return true;
   if (hiddenInsideClosedDetails(el)) return true;
   if (style !== null) {

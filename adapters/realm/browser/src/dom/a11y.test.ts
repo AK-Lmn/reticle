@@ -921,3 +921,28 @@ describe('visibility inside overflow clipping ancestors', () => {
     },
   );
 });
+
+/**
+ * An open Radix menu marks the rest of the page `aria-hidden` (with `data-aria-hidden`), and the
+ * header project picker and its items were graded `hidden_match` while on screen and focused.
+ */
+describe('a page an open overlay hid from assistive tech', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('is still on screen', () => {
+    document.body.innerHTML =
+      '<header aria-hidden="true" data-aria-hidden="true"><button id="p">omar-blog</button></header>';
+    const button = document.getElementById('p');
+    if (null === button) throw new Error('no button');
+    expect(isVisible(button)).toBe(true);
+  });
+
+  it('while the app’s own aria-hidden still hides', () => {
+    document.body.innerHTML = '<div aria-hidden="true"><button id="q">Hidden</button></div>';
+    const button = document.getElementById('q');
+    if (null === button) throw new Error('no button');
+    expect(isVisible(button)).toBe(false);
+  });
+});
