@@ -17,6 +17,7 @@ import {
   type RunRecord,
   type VerifyProgressEvent,
   platformCredentialFrom,
+  flowJsonReplacer,
 } from '@reticlehq/core';
 
 /**
@@ -183,7 +184,10 @@ export async function syncFlowToCloud(
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify(projectId === undefined ? { flow } : { flow, projectId }),
+      body: JSON.stringify(
+        projectId === undefined ? { flow } : { flow, projectId },
+        flowJsonReplacer,
+      ),
     });
     return res.ok
       ? { outcome: SyncOutcome.SYNCED, status: res.status }

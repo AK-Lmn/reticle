@@ -29,7 +29,7 @@ import type {
   HealChange,
   InstrumentationGap,
 } from '@reticlehq/core';
-import { ReticleTool } from '@reticlehq/core';
+import { ReticleTool, flowJsonReplacer } from '@reticlehq/core';
 import { asRecord, asString } from '@reticlehq/core';
 import { applyHealChanges } from './heal.js';
 import { withLearnedSources } from './learned-sources.js';
@@ -349,7 +349,7 @@ export class FlowStore {
    */
   #serialize(flow: FlowFile): string {
     const stamped = { ...flow, version: flowFileVersionFor(flow) };
-    return `${JSON.stringify(stamped, null, JSON_INDENT)}\n`;
+    return `${JSON.stringify(stamped, flowJsonReplacer, JSON_INDENT)}\n`;
   }
 
   /**

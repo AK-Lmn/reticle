@@ -30,7 +30,7 @@
  * Every dependency is injected — the clock, the fetch, the reads and writes — because this is the
  * one piece of Reticle that talks to a network AND to a disk, and it must be provable without either.
  */
-import { FlowErrorCode, ReticleDir, SYNC_BATCH_LIMITS } from '@reticlehq/core';
+import { FlowErrorCode, ReticleDir, SYNC_BATCH_LIMITS, flowJsonReplacer } from '@reticlehq/core';
 import { hashPayload } from './sync-hash.js';
 
 /** The server's own doors. Kept beside the code that calls them, like the other cloud paths. */
@@ -544,7 +544,11 @@ export async function runSyncCycle(deps: SyncDeps): Promise<SyncReport> {
       const batch = batches[i] ?? [];
       const body: Record<string, unknown> = 0 === i ? { ...bundle } : {};
       if (batch.length > 0) body['runs'] = batch.map((r) => r.payload);
-      const pushed = await call(SYNC_PATH, { method: 'POST', body: JSON.stringify(body) });
+      // The flows ride here too: a default flag stays out of them, as on disk.
+      const pushed = await call(SYNC_PATH, {
+        method: 'POST',
+        body: JSON.stringify(body, flowJsonReplacer),
+      });
       if (200 !== pushed.status) {
         pushError = `sync ${String(pushed.status)}: ${pushed.text.slice(0, 200)}`;
         break;

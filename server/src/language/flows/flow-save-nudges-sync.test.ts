@@ -8,7 +8,7 @@
  */
 import { removeTempDir } from '@/machine/temp-dir.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PredicateKind, QueryBy, ReticleTool, type FlowFile } from '@reticlehq/core';
@@ -68,5 +68,30 @@ describe('a flow save', () => {
   it('says nothing when the name is refused and nothing is written', async () => {
     await store.save({ name: '../escape', version: 1, steps: [step] });
     expect(wrote).toBe(0);
+  });
+});
+
+/** A platform on an older core refused every flow carrying `ignoreCase`, even at its default. */
+describe('a saved flow on disk', () => {
+  it('leaves a default ignoreCase out', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'reticle-flow-ignorecase-'));
+    try {
+      const store = new FlowStore(createNodeFileSystem(), join(dir, '.reticle'), { now: () => 1 });
+      await store.save({
+        name: 'checkout',
+        version: 1,
+        steps: [
+          {
+            ...step,
+            expect: { kind: PredicateKind.TEXT, contains: 'Saved', ignoreCase: false },
+          },
+        ],
+      });
+      const written = await readFile(join(dir, '.reticle', 'flows', 'checkout.json'), 'utf8');
+      expect(written).toContain('"contains": "Saved"');
+      expect(written).not.toContain('ignoreCase');
+    } finally {
+      await removeTempDir(dir);
+    }
   });
 });
