@@ -212,6 +212,8 @@ export function artifactRootResolver(
   const daemonProjectId = daemonIsProject
     ? daemonOwnProjectId(daemonRoot, candidates())
     : undefined;
+  /** Said once per project, reason and folder: one session's calls repeated it 16 times in 3s. */
+  const told = new Set<string>();
   return (projectId, origin) => {
     const known = candidates();
     let resolved = resolveArtifactRoot({ projectId, candidates: known, daemonRoot });
@@ -243,7 +245,9 @@ export function artifactRootResolver(
       // app's learned expectations become another's.
       ...(origin === undefined ? {} : { origin }),
     });
-    if (root !== daemonRoot) {
+    const key = `${projectId ?? ''}\u0000${resolved.reason}\u0000${root}`;
+    if (root !== daemonRoot && !told.has(key)) {
+      told.add(key);
       log('artifact_root_unmatched', {
         projectId: projectId ?? null,
         // The other half of the comparison, so a reader can tell "the daemon was a guest" from
@@ -251,6 +255,7 @@ export function artifactRootResolver(
         daemonProjectId: daemonProjectId ?? null,
         reason: resolved.reason,
         root,
+        ...(resolved.candidates === undefined ? {} : { candidates: resolved.candidates }),
       });
     }
     return { ...resolved, root };

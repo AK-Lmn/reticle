@@ -6,7 +6,8 @@ import { runAsAgent } from '@/hooks/coding-agents.js';
 import { takeHumanNotes } from './human-notes.js';
 import { takeDriveNotes } from '@/features/harness/drive-runs.js';
 import { harnessDriving, msgHarnessHasTheTab } from './harness-tab-guard.js';
-import { sessionRoot } from '@/memory/project/session-root.js';
+import { sessionRoot, sessionTarget } from '@/memory/project/session-root.js';
+import { ArtifactRootReason } from '@/memory/project/artifact-root.js';
 import { agentNudge, takePlatformMoment } from './platform-moment.js';
 import { verifyNextBaton, SUPPRESS_VERIFY_NEXT_ENV } from './verify-next-baton.js';
 import {
@@ -688,6 +689,7 @@ async function dispatchTool<Ext>(
     isPlainObject(raw) && ReticleTool.RUN !== tool.name && currentDrivenBy() === undefined
       ? nextStep({
           tool: tool.name,
+          unmatched: unmatchedRootOf(deps, rawSessionId),
           verdict: 'verified' in raw,
           root: safeRoot(() => sessionRoot(deps, rawSessionId)),
           // A partial deps (tests, the demo) may carry no clock; the line is advice, never a reason to fail.
@@ -826,6 +828,26 @@ async function dispatchTool<Ext>(
 function safeRoot(get: () => string): string | undefined {
   try {
     return get();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where this session's evidence goes when no project claims it (`~/.reticle/unmatched/<id>`), with
+ * the folders that compete for its id; undefined when it lands in a project. Never throws.
+ */
+function unmatchedRootOf(
+  deps: ToolDeps,
+  sessionId: string | undefined,
+): { root: string; contenders: readonly string[] } | undefined {
+  try {
+    const target = sessionTarget(deps, sessionId);
+    const resolved = deps.artifactRootFor?.(target.projectId, target.origin);
+    if (resolved === undefined || ArtifactRootReason.MATCHED_PROJECT === resolved.reason)
+      return undefined;
+    if (resolved.root === deps.reticleRoot) return undefined;
+    return { root: resolved.root, contenders: resolved.candidates ?? [] };
   } catch {
     return undefined;
   }

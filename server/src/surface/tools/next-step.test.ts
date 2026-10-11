@@ -45,6 +45,28 @@ describe('what the agent is told to do next', () => {
     expect(verdict(r)).toBe(NextText.SYNC_PROBLEM('answered 401'));
   });
 
+  /** A second checkout's evidence went to ~/.reticle/unmatched and the agent was told nothing. */
+  it('names where unmatched evidence goes, the folders that claim it, and the fix — once', () => {
+    const r = root({ 'request.json': { at: NOW } });
+    const unmatched = {
+      root: '/home/me/.reticle/unmatched/web-750871e8',
+      contenders: ['/code/mono/apps/web', '/code/mono-clone/apps/web'],
+    };
+    const first = nextStep({
+      tool: 'reticle_flow_save',
+      verdict: false,
+      root: r,
+      now: NOW,
+      unmatched,
+    });
+    expect(first).toBe(NextText.UNMATCHED(unmatched.root, unmatched.contenders));
+    expect(first).toContain('/code/mono-clone/apps/web');
+    expect(first).toContain('reticle init');
+    expect(
+      nextStep({ tool: 'reticle_flow_save', verdict: false, root: r, now: NOW, unmatched }),
+    ).not.toBe(first);
+  });
+
   it('on a linked project with nothing wrong, says the run syncs on its own', () => {
     const r = root({ 'cloud.json': { projectId: 'p' }, 'request.json': { at: NOW } });
     expect(verdict(r)).toBe(NextText.FINISH_LINKED);

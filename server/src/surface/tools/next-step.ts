@@ -37,6 +37,14 @@ export const NextText = {
   FINISH_LINKED:
     'Done driving? reticle_session { action: "yield" } hands the tab back; this run syncs to the platform on its own.',
   FINISH: 'Done driving? reticle_session { action: "yield" } hands the tab back.',
+  /**
+   * The evidence of this app is landing outside any project, so nothing will send it. A second
+   * checkout's runs and flows went to `~/.reticle/unmatched/<id>` and the agent was told nothing.
+   */
+  UNMATCHED: (root: string, contenders: readonly string[]): string =>
+    0 < contenders.length
+      ? `This app's runs and flows are going to ${root}, not your project, so they will not reach the dashboard: ${String(contenders.length)} folders claim its project id (${contenders.join(', ')}). Give each checkout its own id (\`reticle init\` in it), or serve the app from one of them.`
+      : `This app's runs and flows are going to ${root}, not your project, so they will not reach the dashboard: no folder on this machine declares its project. Run \`reticle init\` in the app's folder.`,
   REPLAY: (flows: number): string =>
     `This app has ${String(flows)} saved flow(s). Replay them before driving anything by hand: reticle_verify { action: "flows" } re-verifies them with no model.`,
 } as const;
@@ -47,6 +55,8 @@ interface RootState {
   declareAsks: number;
   /** Told about the saved flows already, which is said once per project. */
   replayTold: boolean;
+  /** The unmatched evidence folder already named. */
+  unmatchedTold?: string;
   /**
    * The sync problem already said. One flow the platform refused was repeated on every answer for a
    * whole session; a problem is said once, and again only when it changes.
@@ -118,6 +128,8 @@ function syncProblem(root: string, now: number): string | undefined {
 
 export interface NextStepInput {
   tool: string;
+  /** Where this app's evidence goes when no project claims it, and the folders that compete for it. */
+  unmatched?: { root: string; contenders: readonly string[] } | undefined;
   /** Whether this result carries a verdict. */
   verdict: boolean;
   root: string | undefined;
@@ -159,6 +171,13 @@ export function nextStep(input: NextStepInput): string | undefined {
   const sends = linked || 0 < (process.env[ReticleEnv.API_KEY] ?? '').length;
   const quietDue = state.calls - state.lastQuietAt >= QUIET_CALLS;
 
+  // Before anything else, once per folder: everything else said here assumes the work is landing
+  // in the project.
+  const unmatched = input.unmatched;
+  if (unmatched !== undefined && unmatched.root !== state.unmatchedTold) {
+    state.unmatchedTold = unmatched.root;
+    return NextText.UNMATCHED(unmatched.root, unmatched.contenders);
+  }
   // Measured on a whole-app drive: an agent re-drove everything by hand while saved flows sat
   // unreplayed, though the skill says to replay first. Said on the first call, where it is in time.
   if (!state.replayTold && !input.tool.endsWith('verify')) {
