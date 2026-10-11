@@ -6,7 +6,12 @@
  * verification state, and none of them touch daemon lifecycle, which is what the rest of cli.ts does.
  */
 
-import { GateExit, MSG_GATE_NO_FLOWS, gateExitWith } from './answers/gate-exit.js';
+import {
+  GateExit,
+  MSG_GATE_NO_FLOWS,
+  msgGateRegression,
+  gateExitWith,
+} from './answers/gate-exit.js';
 import { knownRegression } from './known-regression.js';
 import { gateHookMessage, GATE_SKIP_ENV } from './answers/gate-hook-message.js';
 import { readProjectId } from './ports/resolve/cli-port.js';
@@ -226,6 +231,8 @@ export async function handleGate(
         : GateExit.FAIL;
     const code = gateExitWith(local, regressed?.length);
     if (GateExit.NOTHING_TO_CHECK === code && !hook) process.stderr.write(`${MSG_GATE_NO_FLOWS}\n`);
+    if (GateExit.REGRESSION === code && !hook && regressed !== undefined)
+      process.stderr.write(`${msgGateRegression(regressed)}\n`);
     if (GateExit.PASS !== code) {
       process.exitCode = code;
       if (hook) {

@@ -86,7 +86,12 @@ const COMMANDS: readonly CommandDoc[] = [
     detail:
       'Wires the app first if it is not wired, signs in through your browser, links this repo to\n' +
       'the project (created if it does not exist; named after the folder by default), and sends\n' +
-      'local history.',
+      'local history.\n\n' +
+      '  --project <name|id>  the dashboard project to link\n' +
+      '  --url <origin>       the Reticle platform, when it is not the default\n\n' +
+      'Without a browser (CI, an agent), in two steps:\n' +
+      '  reticle login --email <e> [--org <name>]     emails a 6-digit code\n' +
+      '  reticle login --email <e> --code <123456>    signs in, then links this repo',
   },
   {
     name: 'try',
@@ -174,6 +179,7 @@ const COMMANDS: readonly CommandDoc[] = [
     synopsis: 'sync [--watch]',
     summary: 'Send local runs to the dashboard and collect decisions',
     group: HelpGroup.MORE,
+    detail: '`reticle push` is the same command.\n\n  --watch   keep sending as runs are written',
   },
   {
     name: 'runs',
@@ -217,7 +223,7 @@ const COMMANDS: readonly CommandDoc[] = [
     name: 'serve',
     synopsis:
       'serve [--port N] [--drive <url>] [--headless] [--http] [--http-port N] [--http-token T]',
-    summary: 'Run the daemon in the foreground',
+    summary: 'Start the daemon in the background; returns once it answers',
     group: HelpGroup.MORE,
     detail: BROWSER_NOTE,
   },

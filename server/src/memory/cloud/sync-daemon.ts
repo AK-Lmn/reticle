@@ -306,7 +306,7 @@ export function startSyncDaemon(deps: SyncDaemonDeps): SyncDaemon {
         else
           log('reticle_cloud_unlinked', {
             root: deps.reticleRoot,
-            fix: 'run `reticle link` in this directory, or start the daemon in the linked one — nothing is being synced from here',
+            fix: 'run `reticle connect` in this directory, or start the daemon in the linked one — nothing is being synced from here',
           });
       }
       // Every OTHER linked root, first. Their failures are logged and never abort this daemon's own

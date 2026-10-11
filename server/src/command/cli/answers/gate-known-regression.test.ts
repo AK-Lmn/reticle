@@ -4,7 +4,8 @@
  * already knew, while `reticle runs regression` was the command that exited 3.
  */
 import { describe, expect, it } from 'vitest';
-import { GateExit, MSG_GATE_NO_FLOWS, gateExitWith } from './gate-exit.js';
+import { GateExit, MSG_GATE_NO_FLOWS, gateExitWith, msgGateRegression } from './gate-exit.js';
+import { renderHelp } from '../cli-usage.js';
 
 describe('the gate and a regression the platform knows about', () => {
   it('fails with the exit code `reticle runs regression` uses, whatever the local answer', () => {
@@ -22,5 +23,29 @@ describe('the gate and a regression the platform knows about', () => {
   it('says what to do when there are no saved flows, and that the change did not fail', () => {
     expect(MSG_GATE_NO_FLOWS).toContain('not a failure of this change');
     expect(MSG_GATE_NO_FLOWS).toContain('reticle verify');
+  });
+});
+
+/** Exit 3 outside a hook printed only JSON that still said "nothing was checked". */
+describe('a regression the gate fails on', () => {
+  it('is named in one plain line', () => {
+    expect(
+      msgGateRegression([
+        { flowName: 'checkout-pay', previousStatus: 'pass', currentStatus: 'fail' },
+      ]),
+    ).toBe(
+      'Reticle gate: regression — checkout-pay (pass → fail) passed before and fails now on the platform. See `reticle runs regression`.',
+    );
+  });
+});
+
+/** `login`, `link` and `push --help` documented neither `--email`, `--org` nor `--code`. */
+describe('the help a person reads before signing in without a browser', () => {
+  it('names the email sign-in, and serve says it returns', () => {
+    const connect = renderHelp('login', new Map([['login', 'connect']]));
+    expect(connect).toContain('reticle login --email <e> [--org <name>]');
+    expect(connect).toContain('--code <123456>');
+    expect(renderHelp('serve')).toContain('in the background');
+    expect(renderHelp('sync')).toContain('`reticle push` is the same command');
   });
 });

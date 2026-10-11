@@ -36,3 +36,25 @@ export const MSG_GATE_NO_FLOWS =
   'Reticle gate: no saved flows here, so there was nothing to check; this is not a failure of this ' +
   'change. Record one by driving the app with reticle_act_and_wait, or run ' +
   '`reticle verify <url> --explore`, then run the gate again.';
+
+/**
+ * Said when the platform knows a regression, outside a hook. Exit 3 printed only the JSON log, whose
+ * coverage field still read "no flows recorded — nothing was checked", so nothing a person read
+ * said "regression".
+ */
+export function msgGateRegression(broken: readonly unknown[]): string {
+  const names = broken.map((entry) => {
+    if ('string' === typeof entry) return entry;
+    const record =
+      'object' === typeof entry && null !== entry ? (entry as Record<string, unknown>) : {};
+    const name = record['flowName'] ?? record['name'];
+    const was = record['previousStatus'];
+    const now = record['currentStatus'];
+    const flow = 'string' === typeof name ? name : 'a flow';
+    return 'string' === typeof was && 'string' === typeof now ? `${flow} (${was} → ${now})` : flow;
+  });
+  return (
+    `Reticle gate: regression — ${names.join(', ')} passed before and fails now on the platform. ` +
+    'See `reticle runs regression`.'
+  );
+}
