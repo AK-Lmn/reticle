@@ -35,7 +35,7 @@ import type { HarnessTool, HarnessToolset } from '@/features/harness/harness.js'
  * sometimes skip, which silently turns the cheap path off.
  */
 /**
- * Beyond the default surface, the three tools a drive cannot do its job without.
+ * Beyond the default surface, the tools a drive cannot do its job without.
  *
  * RECORD and FLOW_SAVE are how a drive keeps what it drove. FLOW_REPLAY is how it avoids driving
  * the same thing twice — it was absent, so a driver handed a plan full of already-recorded journeys
@@ -45,6 +45,9 @@ const HARNESS_EXTRA_TOOLS: readonly string[] = [
   ReticleTool.RECORD,
   ReticleTool.FLOW_SAVE,
   ReticleTool.FLOW_REPLAY,
+  // A goal below the fold stayed `unknown` on a drive told to scroll to it: nothing it was offered
+  // could scroll. This one brings an element into view by the same query a find uses.
+  ReticleTool.SCROLL_TO,
 ];
 
 /**

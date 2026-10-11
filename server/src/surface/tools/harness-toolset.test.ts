@@ -22,6 +22,11 @@ describe('the surface the harness drives', () => {
     expect(names()).toContain(ReticleTool.FLOW_SAVE);
   });
 
+  /** A drive told to scroll to a counter below the fold had nothing to scroll with. */
+  it('can scroll, so content below the fold is reachable', () => {
+    expect(names()).toContain(ReticleTool.SCROLL_TO);
+  });
+
   it('drops the human feedback channel, which a looping model would drown', () => {
     expect(names()).not.toContain(ReticleTool.FEEDBACK);
   });
