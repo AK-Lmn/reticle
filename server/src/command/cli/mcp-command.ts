@@ -24,7 +24,7 @@ import {
   setProxyLogPort,
 } from '@/surface/mcp/mcp-proxy.js';
 import { installProxyResilience } from '@/command/daemon/daemon-resilience.js';
-import { readProjectId } from './ports/resolve/cli-port.js';
+import { readProjectId, readProjectPort } from './ports/resolve/cli-port.js';
 import { resolveMcpPort, daemonProjectAt } from '@/command/daemon/daemon-resolve.js';
 import { daemonSpawnArgs } from './daemon-start-options.js';
 import { WakeAction, decideWake } from '@/command/daemon/wake-decision.js';
@@ -91,12 +91,18 @@ export async function handleMcp(opts: {
   }
 
   const projectId = readProjectId(process.cwd());
-  const port = await resolveMcpPort(opts.port, projectId, reticleStateHome(), {
-    alive: isAlive,
-    daemonPresent: async (p: number): Promise<boolean> =>
-      presenceIsUsable(await probePresence(p, { tcpOpen: probeDaemon, status: fetchStatus })),
-    pickPort: (p: number): Promise<number> => pickDaemonPortToBind(p),
-  });
+  const port = await resolveMcpPort(
+    opts.port,
+    projectId,
+    reticleStateHome(),
+    {
+      alive: isAlive,
+      daemonPresent: async (p: number): Promise<boolean> =>
+        presenceIsUsable(await probePresence(p, { tcpOpen: probeDaemon, status: fetchStatus })),
+      pickPort: (p: number): Promise<number> => pickDaemonPortToBind(p),
+    },
+    readProjectPort(process.cwd()),
+  );
   if (port !== opts.port) {
     log('reticle_mcp_port_relocated', {
       requested: opts.port,

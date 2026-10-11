@@ -250,6 +250,8 @@ export async function resolveMcpPort(
     daemonPresent: (port: number) => Promise<boolean>;
     pickPort: (preferred: number) => Promise<number>;
   },
+  /** The port this project's `.reticle.json` names: the one its app dials. */
+  own?: number,
 ): Promise<number> {
   const mine = resolveDaemonForProject(projectId, home, deps.alive);
   if (mine !== undefined) return mine;
@@ -265,7 +267,13 @@ export async function resolveMcpPort(
         : [];
     return 1 === projects.length ? (projects[0]?.port ?? preferred) : preferred;
   }
-  return adoptable(daemonProjectAt(preferred, home), projectId)
-    ? preferred
-    : deps.pickPort(preferred);
+  if (adoptable(daemonProjectAt(preferred, home), projectId)) return preferred;
+  // Moved off a port another project holds: to the one this project's app dials, when it is free or
+  // already ours. A random port served nobody — the app kept dialling its own, and the agent was
+  // told "wired, and a dev server is listening, but no session".
+  if (own !== undefined && own !== preferred) {
+    if (!(await deps.daemonPresent(own))) return own;
+    if (adoptable(daemonProjectAt(own, home), projectId)) return own;
+  }
+  return deps.pickPort(preferred);
 }

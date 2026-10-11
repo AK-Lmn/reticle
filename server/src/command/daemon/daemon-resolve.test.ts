@@ -163,6 +163,40 @@ describe('resolveMcpPort', () => {
     ).resolves.toBe(51234);
   });
 
+  /**
+   * Moved off another project's port, the proxy chose a random one; the app kept dialling the port
+   * in its own `.reticle.json`, and the agent saw no session.
+   */
+  it("relocates to the project's own port when it is free, not to a random one", async () => {
+    const dir = home([{ port: 16022, pid: 1, cwd: '/b', startedAt: 1, projectId: 'billing' }]);
+    const onlyPreferred = (p: number): Promise<boolean> => Promise.resolve(16022 === p);
+    await expect(
+      resolveMcpPort(
+        16022,
+        'auth',
+        dir,
+        { alive: live, daemonPresent: onlyPreferred, pickPort: assigned },
+        16026,
+      ),
+    ).resolves.toBe(16026);
+  });
+
+  it("still picks a fresh port when the project's own one is held by another project", async () => {
+    const dir = home([
+      { port: 16022, pid: 1, cwd: '/b', startedAt: 1, projectId: 'billing' },
+      { port: 16026, pid: 1, cwd: '/c', startedAt: 1, projectId: 'checkout' },
+    ]);
+    await expect(
+      resolveMcpPort(
+        16022,
+        'auth',
+        dir,
+        { alive: live, daemonPresent: present, pickPort: assigned },
+        16026,
+      ),
+    ).resolves.toBe(51234);
+  });
+
   /** A daemon nobody claims stays shareable, or every global install breaks. */
   it('adopts an unclaimed daemon on the preferred port', async () => {
     const dir = home([{ port: 4400, pid: 1, cwd: '/a', startedAt: 1 }]);
