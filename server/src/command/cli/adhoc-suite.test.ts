@@ -194,6 +194,20 @@ describe('exploring through the running daemon', () => {
     expect(c.actions()).toEqual(['explore', 'flows']);
   });
 
+  /** `reticle verify <url>` with no open tab answered "no browser session connected". */
+  it('opens the url for a saved suite when no tab is on it, and releases it after', async () => {
+    const c = recording();
+    const result = await runAdhocSuite({
+      port: 4400,
+      url: 'http://localhost:5190/',
+      sessions: () => Promise.resolve([]),
+      connect: () => Promise.resolve(c.tool),
+    });
+    expect(c.actions()).toEqual(['acquire', 'flows', 'release']);
+    expect(c.calls[1]?.args['sessionId']).toBe('lease-9');
+    expect(result.code).toBe(0);
+  });
+
   it('exits non-zero, and replays nothing, when the drive recorded nothing', async () => {
     const c = recording({
       explore: { structuredContent: { stopReason: 'done', savedFlows: [], note: 'nothing saved' } },

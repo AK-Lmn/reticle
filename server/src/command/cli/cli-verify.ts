@@ -792,6 +792,9 @@ export function handleVerify(parsed: {
       case VerifyRoute.ADHOC_SUITE: {
         const suite = await runAdhocSuite({
           port,
+          ...(parsed.url !== undefined && '' !== parsed.url ? { url: parsed.url } : {}),
+          sessions: async () => summarizeStatus(await fetchStatus(port)).sessions,
+          ...callerRoot,
           ...(true === parsed.confirmDangerous ? { confirmDangerous: true } : {}),
           ...(parsed.select === undefined ? {} : { select: parsed.select }),
           ...(parsed.sessionId === undefined ? {} : { sessionId: parsed.sessionId }),

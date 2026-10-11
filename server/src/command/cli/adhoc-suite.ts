@@ -39,6 +39,14 @@ export interface AdhocSuiteOptions {
   token?: string;
   /** Injected so a test does not need a live daemon. */
   connect?: (endpoint: URL) => Promise<ToolCaller>;
+  /**
+   * The url `reticle verify` was given, and the tabs the daemon has: with no tab on its origin, the
+   * suite runs in a Reticle browser opened at it. It answered "no browser session connected" instead.
+   */
+  url?: string;
+  sessions?: () => Promise<readonly { url: string }[]>;
+  /** The caller's project `.reticle`: a lease opened here writes its runs there. */
+  root?: string;
 }
 
 /** The only status that is a pass. `unverifiable` means nothing was checked, which is not one. */
@@ -81,8 +89,18 @@ export async function runAdhocSuite(options: AdhocSuiteOptions): Promise<AdhocVe
       ],
     };
   }
+  let leased: string | undefined;
   try {
-    return await replaySuite(caller, options);
+    const url = options.url !== undefined && 0 < options.url.length ? options.url : undefined;
+    if (url !== undefined && options.sessionId === undefined && options.sessions !== undefined) {
+      const opened = await leaseIfNoTab(caller, url, options.sessions, options.root);
+      if ('failed' in opened) return { code: 1, lines: ['status: unverifiable', ...opened.failed] };
+      leased = opened.leased;
+    }
+    return await replaySuite(caller, {
+      ...options,
+      ...(leased === undefined ? {} : { sessionId: leased }),
+    });
   } catch (error) {
     return {
       code: 1,
@@ -91,6 +109,7 @@ export async function runAdhocSuite(options: AdhocSuiteOptions): Promise<AdhocVe
       ],
     };
   } finally {
+    if (leased !== undefined) await releaseLease(caller, leased);
     await caller.close().catch(() => undefined);
   }
 }
