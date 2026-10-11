@@ -1,5 +1,6 @@
 import type { FlowReplayResult } from '@reticlehq/core';
-import { asString } from '@reticlehq/core';
+import { asNumber, asString, mutationTargetsFor, perturbationFor } from '@reticlehq/core';
+import { sessionPerturbationPort } from '@/surface/tools/lease-tools.js';
 import type { ToolDeps } from '@/surface/tools/tool-kit.js';
 import { flowsForSession } from './flow-store-for-session.js';
 import { safeSessionTarget, type ProjectTarget } from '@/memory/project/session-root.js';
@@ -110,5 +111,38 @@ export async function persistSources(
     await store.recordSources(name, sources, projectId);
   } catch {
     // Bookkeeping only.
+  }
+}
+
+/** A replay, under seeded perturbation when `seed` asks for one; the page is always put back. */
+export async function replaySeededOrNot(
+  deps: ToolDeps,
+  args: Record<string, unknown>,
+  /** Where the perturbation port finds the page: the app's origin. */
+  appUrl: string | undefined,
+): Promise<FlowReplayResult> {
+  const seed = asNumber(args['seed']);
+  if (seed === undefined) return await replayAndLearn(deps, args);
+  /*
+   * The targets are the endpoints the FLOW declared it depends on, so the perturbation lands on
+   * traffic the flow claims to care about. No declared endpoints means nothing to slow, and the
+   * replay runs clean rather than pretending a seed did something. `finally` is not tidiness: a
+   * page left slowed is damage the NEXT run inherits, as a mystery.
+   */
+  const target = targetOf(deps, args);
+  const loaded = await flowsForSession(deps, target)
+    .flows.load(asString(args['flowName']) ?? asString(args['flow']) ?? '', target.projectId)
+    .catch(() => null);
+  const targets = loaded !== null && loaded.ok ? mutationTargetsFor(loaded.value) : [];
+  const rules = perturbationFor(seed, targets);
+  const port =
+    0 === rules.length ? undefined : await sessionPerturbationPort(deps.realInput, appUrl);
+  if (port === undefined) return replayAndLearn(deps, args);
+  try {
+    await port.slow(rules);
+    const replay = await replayNamedFlow(deps, args);
+    return { ...replay, perturbed: rules } as FlowReplayResult;
+  } finally {
+    await port.clear().catch(() => undefined);
   }
 }

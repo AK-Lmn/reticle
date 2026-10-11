@@ -16,15 +16,11 @@ import {
 import type { FlowFile } from '@reticlehq/core';
 import { recordSuiteFlakes } from './suite/suite-flakes.js';
 import { AppRuntime, ReticleTool } from '@reticlehq/core';
-import { asNumber, asString, mutationTargetsFor, perturbationFor } from '@reticlehq/core';
+import { asNumber, asString } from '@reticlehq/core';
 import { log } from '@/log.js';
 import { cloudFetch, syncFlowToCloud, SyncOutcome } from '@/memory/cloud/cloud-sync.js';
 import { mapWithConcurrency, resolveConcurrency } from './suite/parallel-suite.js';
-import {
-  acquireLeasedSession,
-  sessionPerturbationPort,
-  suiteFixtureSeed,
-} from '@/surface/tools/lease-tools.js';
+import { acquireLeasedSession, suiteFixtureSeed } from '@/surface/tools/lease-tools.js';
 import { homedir } from 'node:os';
 import { resolveProjectCloud } from '@/memory/cloud/cloud-config.js';
 import { buildSuiteVerdict } from './decision.js';
@@ -35,15 +31,15 @@ import type { SuiteVerdict } from '@reticlehq/core';
 import { type FlowAnnotations } from './flows.js';
 import type { ToolDef, ToolDeps } from '@/surface/tools/tool-kit.js';
 import { flowsForSession } from './flow-store-for-session.js';
-import { rootForTarget, sessionTarget, type ProjectTarget } from '@/memory/project/session-root.js';
+import {
+  rootForTarget,
+  safeSessionTarget,
+  sessionTarget,
+  type ProjectTarget,
+} from '@/memory/project/session-root.js';
 import { originOf } from '@/portal/session/session-manager.js';
 import { resolveSuiteSelection } from './suite-selection.js';
-import {
-  replayNamedFlow,
-  flowErrorMessage,
-  latestRecordedFlow,
-  sessionProjectId,
-} from './flow-replay-run.js';
+import { flowErrorMessage, latestRecordedFlow, sessionProjectId } from './flow-replay-run.js';
 import {
   persistAndSyncVerificationRun,
   type TimedReplay,
@@ -52,7 +48,7 @@ import { runServerVerify } from './suite/server-verify.js';
 import { healFlow } from './heal-run.js';
 
 export { replayNamedFlow } from './flow-replay-run.js';
-import { replayAndLearn } from './flow-learning.js';
+import { replayAndLearn, replaySeededOrNot } from './flow-learning.js';
 
 /**
  * Best-effort mirror of a just-saved flow to Reticle (only when logged in — both cloud env vars
@@ -492,6 +488,7 @@ export const FLOW_TOOLS: ToolDef[] = [
       // but omitted here, so a validating profile stripped it and a replay result arrived anonymous.
       name: z.string(),
       status: z.string().describe('ok | drift | error | unverifiable'),
+      runId: z.string().optional().describe('The run this replay was written down as.'),
       steps: z.array(z.unknown()),
       proposals: z.array(z.unknown()).optional(),
       deviation: z
@@ -558,38 +555,20 @@ export const FLOW_TOOLS: ToolDef[] = [
     // The decision envelope is attached by replayNamedFlow only on drift/fail (clean pass stays
     // token-flat). Single-flow replay and whole-suite verify share that one implementation.
     handler: async (deps: ToolDeps, args): Promise<FlowReplayResult> => {
-      const seed = asNumber(args['seed']);
-      if (seed === undefined) return await replayAndLearn(deps, args);
-      /*
-       * Seeded chaos, and always put the page back.
-       *
-       * The targets are the endpoints the FLOW declared it depends on, so the perturbation lands on
-       * traffic the flow claims to care about rather than on something it never mentioned. No
-       * declared endpoints means nothing to slow, and the replay runs clean rather than pretending
-       * a seed did something.
-       *
-       * `finally` is not tidiness: a page left slowed is damage the NEXT run inherits, and it would
-       * inherit it as a mystery — the same rule the mutation loop had to earn.
-       */
-      const sessionId = asString(args['sessionId']);
-      const target = sessionTarget(deps, sessionId);
-      const loaded = await flowsForSession(deps, target)
-        .flows.load(asString(args['flowName']) ?? asString(args['flow']) ?? '', target.projectId)
-        .catch(() => null);
-      const targets = loaded !== null && loaded.ok ? mutationTargetsFor(loaded.value) : [];
-      const rules = perturbationFor(seed, targets);
-      const port =
-        0 === rules.length
-          ? undefined
-          : await sessionPerturbationPort(deps.realInput, leasableAppUrl(deps, sessionId));
-      if (port === undefined) return replayAndLearn(deps, args);
-      try {
-        await port.slow(rules);
-        const replay = await replayNamedFlow(deps, args);
-        return { ...replay, perturbed: rules } as FlowReplayResult;
-      } finally {
-        await port.clear().catch(() => undefined);
-      }
+      const start = deps.now();
+      const replay = await replaySeededOrNot(
+        deps,
+        args,
+        leasableAppUrl(deps, asString(args['sessionId'])),
+      );
+      // Written down as a run, and named in the answer: the platform's Re-verify ties its check to
+      // it, and a check with no run could never resolve the issue it was for.
+      const runId = await persistAndSyncVerificationRun(
+        deps,
+        [{ replay, durationMs: deps.now() - start }],
+        safeSessionTarget(deps, asString(args['sessionId'])),
+      );
+      return runId === undefined ? replay : { ...replay, runId };
     },
   },
   {
@@ -624,6 +603,7 @@ export const FLOW_TOOLS: ToolDef[] = [
     },
     outputSchema: {
       status: z.string().describe('pass | fail'),
+      runId: z.string().optional().describe('The run this suite was written down as.'),
       total: z.number(),
       passed: z.number(),
       failed: z.number(),
@@ -781,7 +761,7 @@ export const FLOW_TOOLS: ToolDef[] = [
           durationMs: o.ok && o.value !== undefined ? o.value.durationMs : 0,
         }));
         const flaky = await recordSuiteFlakes(deps.fs, rootForTarget(deps, target), parallelRuns);
-        await persistAndSyncVerificationRun(deps, timed, target);
+        const runId = await persistAndSyncVerificationRun(deps, timed, target);
         const verdict = buildSuiteVerdict(
           parallelRuns,
           selected.knownRoutes,
@@ -789,6 +769,7 @@ export const FLOW_TOOLS: ToolDef[] = [
         );
         return {
           ...verdict,
+          ...(runId === undefined ? {} : { runId }),
           ...(flaky.length > 0 ? { flaky: [...flaky] } : {}),
           ...heldBack,
         };
@@ -826,13 +807,14 @@ export const FLOW_TOOLS: ToolDef[] = [
       // one an agent uses was the blind half.
       const flaky = await recordSuiteFlakes(deps.fs, rootForTarget(deps, target), runs);
       // Emit the consolidated run artifact (Runs tab) + best-effort cloud push. Never blocks the verdict.
-      await persistAndSyncVerificationRun(deps, timed, target);
+      const runId = await persistAndSyncVerificationRun(deps, timed, target);
       const verdict = buildSuiteVerdict(runs, selected.knownRoutes, SuiteIsolation.SHARED_SESSION);
       // A flow that has both passed and failed on UNCHANGED code is a different thing from a
       // regression, and an agent that cannot tell them apart either chases a ghost or ignores a real
       // break. Present only when the ledger has seen enough runs to say so.
       return {
         ...verdict,
+        ...(runId === undefined ? {} : { runId }),
         ...(flaky.length > 0 ? { flaky: [...flaky] } : {}),
         ...heldBack,
       };

@@ -541,6 +541,11 @@ export interface SuiteContradiction extends Contradiction {
 export interface FlowReplayResult {
   name: string;
   status: ReplayStatus;
+  /**
+   * The verification run this replay was written down as, so whoever started it (the platform's
+   * Re-verify) can tie its check to the run and a passing replay resolves the issue it was for.
+   */
+  runId?: string;
 
   /**
    * Contradictions that span steps — found by re-running the detectors over the WHOLE replay, minus
