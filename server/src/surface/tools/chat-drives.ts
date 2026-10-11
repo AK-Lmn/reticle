@@ -325,24 +325,13 @@ export function startChatDrives(
     open,
     extras: async () => {
       const closure = sessions.lastClosure?.();
-      const unsynced = cloud.unsynced?.() ?? [];
+      const unsynced = cloud.unsynced?.();
       return {
         devServers: await scanDevServers(),
         ...(closure === undefined
           ? {}
           : { helloFailure: { reason: closure.reason, at: closure.at } }),
-        ...(0 === unsynced.length
-          ? {}
-          : {
-              unsynced: unsynced.map((u) => ({
-                ...u,
-                // The project, not its `.reticle`: the dashboard tells the person to run a command there.
-                root: homeRelative(
-                  ReticleDir.ROOT === basename(u.root) ? dirname(u.root) : u.root,
-                  homedir(),
-                ),
-              })),
-            }),
+        ...unsyncedReport(unsynced, homedir()),
       };
     },
     drivePending: (platform) => void drives.tick(platform),
@@ -479,4 +468,22 @@ export function attachHudHarness(
   onDriveStep(daemon.repaint);
   // And "Connected: Claude Code" follows an agent attaching or leaving.
   onAgentsChange(daemon.repaint);
+}
+
+/**
+ * The `unsynced` field of a report. Sent empty too, once this daemon has counted: the platform reads
+ * an absent list as "no news" and kept a "never sent" banner for runs that had long been sent.
+ */
+export function unsyncedReport(
+  unsynced: readonly { root: string; runs: number; linked: boolean }[] | undefined,
+  home: string,
+): { unsynced?: { root: string; runs: number; linked: boolean }[] } {
+  if (unsynced === undefined) return {};
+  return {
+    unsynced: unsynced.map((u) => ({
+      ...u,
+      // The project, not its `.reticle`: the dashboard tells the person to run a command there.
+      root: homeRelative(ReticleDir.ROOT === basename(u.root) ? dirname(u.root) : u.root, home),
+    })),
+  };
 }

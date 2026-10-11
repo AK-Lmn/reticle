@@ -3,7 +3,7 @@ import { HumanControlKind } from '@reticlehq/core';
 import type { ToolDeps } from './tool-kit.js';
 // The tool table first, as the daemon loads it: the explore module sits on an import cycle with it.
 import './tools.js';
-import { hudDrive } from './chat-drives.js';
+import { hudDrive, unsyncedReport } from './chat-drives.js';
 import { coverageRefusal, harnessLockRefusal, MSG_GATE_PROMPT_LEAD } from './harness-explore.js';
 import type { ConfigFetch } from '@/features/harness/platform-config.js';
 import { answerExplore } from './explore-tools.js';
@@ -178,5 +178,26 @@ describe("the panel's Harness controls", () => {
     const said: string[] = [];
     await hudDrive(deps(said), 's1', { kind: HumanControlKind.HARNESS_STOP }, noSwitch);
     expect(said).toEqual(['No Harness drive is running in this tab.']);
+  });
+});
+
+/**
+ * A monorepo's dashboard said "1 run … was never sent" for runs it had on the board, through ten
+ * reloads: once the list was empty the daemon left it out, and the platform keeps the last word when
+ * the key is absent.
+ */
+describe('what the daemon reports as never sent', () => {
+  it('says "nothing" once it has counted, rather than saying nothing', () => {
+    expect(unsyncedReport([], '/home/me')).toEqual({ unsynced: [] });
+    expect(unsyncedReport(undefined, '/home/me')).toEqual({});
+  });
+
+  it('names the project folder, home-relative', () => {
+    expect(
+      unsyncedReport(
+        [{ root: '/home/me/mono/apps/web/.reticle', runs: 1, linked: false }],
+        '/home/me',
+      ),
+    ).toEqual({ unsynced: [{ root: '~/mono/apps/web', runs: 1, linked: false }] });
   });
 });
