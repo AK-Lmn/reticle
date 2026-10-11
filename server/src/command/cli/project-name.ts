@@ -12,6 +12,8 @@
  * owner chose and the one they will look for in a project list.
  */
 
+import { PROJECT_ID_HASH_LENGTH } from '@reticlehq/core';
+
 /** Cap the slug so a deep or oddly-named checkout cannot produce an unreadable project id. */
 const MAX_SLUG = 48;
 
@@ -44,7 +46,22 @@ export const slugifyProjectName = (raw: string): string => {
 export const defaultProjectFor = (
   cwdBasename: string,
   existingProjectId: string | undefined,
+  /** The `projectId` `init` wrote into `.reticle.json`, when there is one. */
+  localProjectId?: string,
 ): string => {
   if (existingProjectId !== undefined && existingProjectId.length > 0) return existingProjectId;
-  return slugifyProjectName(cwdBasename);
+  const named = localProjectId === undefined ? undefined : nameOfLocalId(localProjectId);
+  return slugifyProjectName(named ?? cwdBasename);
 };
+
+/** `init`'s id is the app's name and a short hash of where it lives: `nina-todo-f96721e8`. */
+const LOCAL_ID = new RegExp(`^(.+)-[0-9a-f]{${String(PROJECT_ID_HASH_LENGTH)}}$`);
+
+/**
+ * The name part of the id `init` wrote. One project carried two names: `.reticle.json` said
+ * `nina-todo-f96721e8` (from the package) while the dashboard said `app` (the folder), so the person
+ * looked for one and the list showed the other. The dashboard now takes the name `init` wrote.
+ */
+function nameOfLocalId(localProjectId: string): string | undefined {
+  return LOCAL_ID.exec(localProjectId)?.[1];
+}

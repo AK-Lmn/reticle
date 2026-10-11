@@ -24,6 +24,21 @@ describe('a repo is named after itself', () => {
   });
 });
 
+/**
+ * `.reticle.json` named the project `nina-todo-f96721e8` while the dashboard named it `app`, after
+ * the folder: one project, two names. The dashboard takes the name `init` wrote.
+ */
+describe('a repo init already named', () => {
+  it('is linked under the name init wrote, not the folder', () => {
+    expect(defaultProjectFor('app', undefined, 'nina-todo-f96721e8')).toBe('nina-todo');
+  });
+
+  it('still prefers an existing binding, and falls back to the folder for an id it cannot read', () => {
+    expect(defaultProjectFor('app', 'app', 'nina-todo-f96721e8')).toBe('app');
+    expect(defaultProjectFor('app', undefined, 'custom')).toBe('app');
+  });
+});
+
 describe('an existing binding always wins', () => {
   it('keeps the project a linked repo already reports to', () => {
     // The safety property of the whole change. People re-run `link` to rotate a key or repoint an

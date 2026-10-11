@@ -23,7 +23,7 @@ import {
 import { applyCredential, findCredential } from './auth/cloud-keystore.js';
 import { defaultProjectFor } from './project-name.js';
 import { linkDirectoryFrom } from '@/memory/project/link-directory.js';
-import { RETICLE_CONFIG_BASENAME } from './ports/resolve/cli-port.js';
+import { RETICLE_CONFIG_BASENAME, readProjectId } from './ports/resolve/cli-port.js';
 import { normalizeUrl } from './auth/cloud-session.js';
 import { cmdLogin, cmdLogout } from './cloud-login.js';
 import { cmdTry } from './try-command.js';
@@ -387,6 +387,7 @@ export const cmdLink = async (
     const fallback = defaultProjectFor(
       basename(projectDir),
       'string' === typeof priorProjectId ? priorProjectId : undefined,
+      readProjectId(projectDir),
     );
     const targetId =
       wanted === undefined
