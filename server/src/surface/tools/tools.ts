@@ -458,6 +458,12 @@ export const RAW_TOOLS: ToolDef[] = [
             .describe(
               "Present when a TEXT search missed but the string IS on the page, split across this container's children. Retry as { scope: <ref>, self: true } — no text query can match a string no single element owns.",
             ),
+          caseMiss: z
+            .string()
+            .optional()
+            .describe(
+              'Present when a case-exact TEXT check missed and the page shows the text in another case: what it shows. Retry with ignoreCase: true if the case does not matter.',
+            ),
           // Declared here for the same reason presentRegions had to be: the browser emits it, and an
           // undeclared field is stripped from structuredContent without a word.
           nameNearMiss: z

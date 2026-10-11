@@ -111,6 +111,7 @@ function annotateThrottledMiss(
  *
  * - `splitText`: the browser found the requested string in the rendered page, split across
  *   children. Target-specific — the text IS the thing that was asked for.
+ * - `caseMiss`: the browser found it in another case, for a case-exact check.
  * - `nearMiss` from `element.state`: the target element exists but in the wrong state. The DOM
  *   painted the element itself, so starvation is not the explanation.
  *
@@ -123,7 +124,7 @@ function annotateThrottledMiss(
 function evidenceProvesPageRendered(result: EvalResult): boolean {
   const evidence = result.evidence;
   if ('object' !== typeof evidence || null === evidence) return false;
-  if ('splitText' in evidence) return true;
+  if ('splitText' in evidence || 'caseMiss' in evidence) return true;
   if ('nearMiss' in evidence && 'element.state' === result.assertion) return true;
   return false;
 }

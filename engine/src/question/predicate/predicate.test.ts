@@ -974,6 +974,28 @@ describe('a throttled tab timeout is not a missing render', () => {
     expect(result.failureReason).toContain('split across the children');
   });
 
+  /** A case-only miss read "split across the children of paragraph" and suggested the same check. */
+  it('names a miss that differs only by case, and the ignoreCase that matches it', async () => {
+    const session = new ThrottledSession([], () => ({
+      matched: false,
+      count: 0,
+      elements: [],
+      hint: {
+        route: '/',
+        presentTestids: [],
+        presentRegions: [],
+        knownEmptyState: false,
+        caseMiss: 'Order placed',
+      },
+    }));
+    const result = await evaluatePredicate(session, { kind: 'text', contains: 'order placed' });
+    expect(result.pass).toBe(false);
+    expect(result.inconclusive).toBeUndefined();
+    expect(result.failureReason).toContain('the page shows "Order placed"');
+    expect(result.failureReason).toContain('ignoreCase: true');
+    expect(result.failureReason).not.toContain('split across');
+  });
+
   /**
    * Unrelated testids on a partially rendered page do not prove the TARGET rendered. A static shell
    * or another part of the page can carry testids while the requested element remains starved.

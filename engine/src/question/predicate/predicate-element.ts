@@ -29,7 +29,7 @@ import {
 // evaluator that defines it.
 import type { PredicateSession } from './predicate-session.js';
 import { describeTestidMiss } from './testid-near-miss.js';
-import { describeSplitTextMiss } from './split-text-miss.js';
+import { describeCaseMiss, describeSplitTextMiss } from './split-text-miss.js';
 import { satisfiesProperty, type Baseline, type PropertyAssertion } from './property.js';
 import { describeNameNearMiss } from './name-near-miss.js';
 
@@ -340,8 +340,12 @@ export async function evalElement(
   // already limited to that role.
   const nearMissRole = QueryBy.ROLE === query.by ? query.value : query.role;
   const nearMiss = describeNameNearMiss(match.hint?.nameNearMiss, query.name, nearMissRole);
+  const caseMiss = describeCaseMiss(match.hint?.caseMiss);
   const clause =
-    splitText ?? nearMiss ?? (alsoHere === undefined || '' === alsoHere ? undefined : alsoHere);
+    caseMiss ??
+    splitText ??
+    nearMiss ??
+    (alsoHere === undefined || '' === alsoHere ? undefined : alsoHere);
   const suffix = clause === undefined ? '' : ` — ${clause}`;
   // The evidence list is capped in document order, so a region low on the page is exactly what it
   // drops. Handed back with no marker it reads as the whole page, and the field report this came
@@ -357,12 +361,14 @@ export async function evalElement(
     // `splitText` rides on the evidence because it is a POSITIVE observation: the browser found the
     // string in the rendered page. `annotateThrottledMiss` reads it so a miss on a backgrounded tab
     // is not blamed on a render that demonstrably happened.
-    ...(present.length > 0 || splitText !== undefined
+    ...(present.length > 0 || splitText !== undefined || caseMiss !== undefined
       ? {
           evidence: {
             ...(present.length > 0 ? { presentTestids: present } : {}),
             ...(total === undefined || 0 === present.length ? {} : { presentTestidsTotal: total }),
             ...(splitText === undefined ? {} : { splitText: match.hint?.splitText }),
+            // Positive too: the page rendered the text, in another case.
+            ...(caseMiss === undefined ? {} : { caseMiss: match.hint?.caseMiss }),
           },
         }
       : {}),

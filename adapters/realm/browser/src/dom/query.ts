@@ -660,7 +660,11 @@ function buildPresentRegions(query: ElementQuery): PresentRegion[] {
  * contains the string and naming `<body>` is not a locator. The deepest one is the tightest scope
  * that still holds the whole string, which is the one worth pasting back.
  */
-function splitTextOwner(container: HTMLElement, wanted: string): HTMLElement | undefined {
+function splitTextOwner(
+  container: HTMLElement,
+  wanted: string,
+  query: ElementQuery,
+): HTMLElement | undefined {
   let best: HTMLElement | undefined;
   let bestDepth = -1;
   // One memo for the whole pass: the visibility walk is O(depth) per element and every sibling
@@ -669,7 +673,8 @@ function splitTextOwner(container: HTMLElement, wanted: string): HTMLElement | u
   const memo = new Map<Element, boolean>();
   for (const el of elementsUnder(container)) {
     if (isIgnored(el)) continue; // never point an agent at Reticle's own UI
-    if (!fuzzyVisibleText(visibleTextOf(el, memo), wanted)) continue;
+    // The query's own case rule: a case-exact check that missed only on case is not "split".
+    if (!textMatches(visibleTextOf(el, memo), query, wanted)) continue;
     let depth = 0;
     for (let parent = el.parentElement; parent !== null; parent = parent.parentElement) depth++;
     if (depth > bestDepth) {
@@ -678,6 +683,20 @@ function splitTextOwner(container: HTMLElement, wanted: string): HTMLElement | u
     }
   }
   return best;
+}
+
+/** The text as the page shows it, when it differs from `wanted` only by case. */
+function caseOnlyMatch(container: HTMLElement, wanted: string): string | undefined {
+  const target = normaliseVisibleText(wanted).toLowerCase();
+  if (0 === target.length) return undefined;
+  const memo = new Map<Element, boolean>();
+  for (const el of elementsUnder(container)) {
+    if (isIgnored(el)) continue;
+    const text = normaliseVisibleText(visibleTextOf(el, memo));
+    const at = text.toLowerCase().indexOf(target);
+    if (-1 !== at) return text.slice(at, at + target.length);
+  }
+  return undefined;
 }
 
 /** The text this query searched for, in either spelling, or undefined when it searched by something else. */
@@ -778,8 +797,12 @@ function buildEmptyHint(query: ElementQuery): QueryEmptyHint {
   // and the extra clause would lengthen every failure to say nothing.
   const wanted = wantedTextOf(query);
   if (wanted !== undefined) {
-    const owner = splitTextOwner(container, wanted);
+    const owner = splitTextOwner(container, wanted, query);
     if (owner !== undefined) hint.splitText = describe(owner);
+    else if (true === query.matchCase) {
+      const shown = caseOnlyMatch(container, wanted);
+      if (shown !== undefined) hint.caseMiss = shown;
+    }
   }
   const near = nameNearMisses(container, query);
   if (near.length > 0) hint.nameNearMiss = near;

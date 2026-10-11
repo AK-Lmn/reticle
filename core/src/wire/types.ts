@@ -204,6 +204,12 @@ export interface QueryEmptyHint {
    */
   splitText?: ElementDescriptor;
   /**
+   * Present only when a case-exact TEXT check missed and the page shows the text in another case:
+   * what it shows. Reported as "split across children" before, with the same failing check as the
+   * recovery; the recovery is `ignoreCase: true`.
+   */
+  caseMiss?: string;
+  /**
    * Present only when a ROLE+NAME search missed and that role DOES carry a nearly-matching name.
    *
    * Role+name matching is exact, deliberately: substring matching on `name` would let a query for
