@@ -26,7 +26,8 @@ import {
   type Predicate,
 } from '@reticlehq/engine/question/predicate/predicate.js';
 import { asRecord, asString } from '@reticlehq/core';
-import { ReticleTool } from '@reticlehq/core';
+import { PredicateKind, ReticleTool } from '@reticlehq/core';
+import type { WaitForSignal } from './flow-replay-types.js';
 
 /** A scripted QUERY response per testid: live elements + (on zero) the present-testids near-miss. */
 interface QueryScript {
@@ -589,5 +590,27 @@ describe('nearestIsAmbiguous — refuse to auto-heal a coin-flip', () => {
   it('is false with fewer than two candidates', () => {
     expect(nearestIsAmbiguous('x', [])).toBe(false);
     expect(nearestIsAmbiguous('x', ['y'])).toBe(false);
+  });
+});
+
+// Text checks match case exactly now, so a flow saved when they did not can go red on capitalisation
+// alone. Its replay must say that and how to fix it, not only "did not hold".
+describe('a replayed text check that missed only on case', () => {
+  it('says the page shows it in another case, and names the fix', async () => {
+    const session = new FakeSession(() => ({ elements: [{ ref: 'e1' } as ElementDescriptor] }));
+    const step: FlowStep = {
+      ...testidStep('save'),
+      expect: { kind: PredicateKind.TEXT, contains: 'Saved priya' },
+    };
+    const caseOnly: WaitForSignal = () =>
+      Promise.resolve({
+        pass: false,
+        failureReason: "no text containing 'Saved priya'",
+        caseOnlyMiss: true,
+        wouldHold: 'Saved Priya',
+      });
+    const steps = await replayFlow(session, flow([step]), caseOnly, FAST);
+    expect(steps[0]?.drift?.reason).toContain('another case ("Saved Priya")');
+    expect(steps[0]?.drift?.reason).toContain('ignoreCase: true');
   });
 });
