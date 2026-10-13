@@ -150,7 +150,9 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // beside the run schema because only this subpath keeps it out of every page's first load.
   // 20 with `harness-map.ts`, the exploratory Harness's map of the app: read by the daemon and the
   // platform both, so it lives with the other formats behind the artifacts subpath.
-  'core/src/artifacts': 20,
+  // 21 with `flow-results.ts`, the replay/suite/heal result envelopes split from `flow-types.ts` at
+  // its line cap; re-exported from there, so nothing that imports flow types moved.
+  'core/src/artifacts': 21,
   // 11 since `hud-entry.ts`, the `@reticlehq/core/hud` subpath. Entry points live at the package root
   // beside `tour-entry.ts` and `telemetry-entry.ts`, because package.json names them by path.
   'core/src': 11,
@@ -169,7 +171,9 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // exact role+name predicate misses (#875). A sibling of `split-text-miss.ts` and
   // `testid-near-miss.ts` rather than folded into either: each of those is named for the field it
   // explains, and a filename here is published API (see public-subpaths-are-pinned.test.ts).
-  'engine/src/question/predicate': 22,
+  // 23 with `net-blind-spots.ts`: what the net channel cannot see, split from `predicate-eval.ts` at
+  // its line cap, and free of the core contract so the coupling ceiling does not move.
+  'engine/src/question/predicate': 23,
   /*
    * Crossed ten when the fast-drive budget and a portable byte counter landed. The guard asks for
    * grouping rather than recording at this moment, and grouping is the wrong move HERE specifically:
@@ -239,7 +243,9 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // the tab answer, is it visible), moved out of lease-tools.ts for the same line-cap reason.
   // 52 with `reticle-result.ts`: the block an agent ends with, beside `platform-moment.ts` whose
   // connect line it shares; `judgement/runs` was the other home and is at its own recorded count.
-  'server/src/surface/tools': 50,
+  // 51 with `harness-gate.ts`: whether a Harness drive may start, split from `harness-explore.ts` at
+  // its line cap; every gate caller already sits in this directory.
+  'server/src/surface/tools': 51,
   // Crossed the line when a planned step gained its own `expect`: the grading rule and its test
   // joined the act cluster (preflight, target, retry, capsule). Recorded rather than grouped,
   // because this directory IS the grouping -- these files were split out of act-tools.ts when it
@@ -257,7 +263,7 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // 19 since `setup-mcp-cli.ts`: the terminal half of `reticle setup mcp`, which the one-line
   // installer runs before any project exists. It sits HERE and not in `setup/` because the reach
   // guard refused `command -> setup` and CLI handlers already live in this directory.
-  'server/src/command/cli': 26, // + known-regression.ts: the gate's read of the platform, off the library path; + try-command.ts, verify-results.ts, cli-usage.ts: commands and their output beside their siblings; a subdirectory gave each a new reach the reach guard refuses; + tutorial.ts: one sequence, two audiences, ending at a verdict; + report-command.ts, a command beside its siblings
+  'server/src/command/cli': 27, // + cloud-link.ts: `reticle link`, split from cloud-cli.ts at its line cap; + known-regression.ts: the gate's read of the platform, off the library path; + try-command.ts, verify-results.ts, cli-usage.ts: commands and their output beside their siblings; a subdirectory gave each a new reach the reach guard refuses; + tutorial.ts: one sequence, two audiences, ending at a verdict; + report-command.ts, a command beside its siblings
   // 17 since the installer's Node half: `setup-mcp.ts` (which agents are here, and merging into the
   // configs they already keep) and `setup-install.ts` (the three steps only the shell could time).
   // Both are pure — their telemetry reporter is INJECTED, because this directory does not own a
@@ -352,6 +358,9 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // already says which drive a call belongs to, per call, so a second module-wide copy was removed.
   'server/src/telemetry': 35,
   'spec-runner/src': 11,
+  // 11 with `start-wiring.ts`: what `start` and `startDaemon` both assemble, split from `index.ts` at
+  // its line cap. Beside the entry points it serves; anywhere else it would be a new reach.
+  'server/src': 11,
 };
 
 /** Tracked, shipped, non-test TypeScript, grouped by the directory it sits in. */

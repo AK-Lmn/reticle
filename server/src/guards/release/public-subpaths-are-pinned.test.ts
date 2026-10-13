@@ -95,6 +95,8 @@ const PINNED: readonly PublicSurface[] = [
       // New public entry point: the near-miss clause for an exact role+name predicate that missed,
       // beside its testid and split-text siblings (#875).
       'question/predicate/name-near-miss.ts',
+      // What the net channel cannot see, split from predicate-eval.ts at its line cap.
+      'question/predicate/net-blind-spots.ts',
       'question/predicate/net-evidence.ts',
       'question/predicate/observed-in-window.ts',
       'question/predicate/predicate-asks.ts',
