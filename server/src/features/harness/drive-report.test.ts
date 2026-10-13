@@ -1,4 +1,4 @@
-import { invokedFlowMissing } from '@reticlehq/core';
+import { invokedFlowMissing, ScriptStatus } from '@reticlehq/core';
 import { describe, expect, it } from 'vitest';
 import {
   checkTally,
@@ -777,5 +777,25 @@ describe('a passive assert that read too early', () => {
   it('still fails when nothing later holds it, or when it failed after holding', () => {
     expect(checkTally([asserted('no')]).failed).toBe(1);
     expect(checkTally([asserted('yes'), asserted('no')]).failed).toBe(1);
+  });
+});
+
+// Review of the release: "any passed → proved" read PROVED for a plan whose other journeys a credit
+// cut-off had blocked, and the result block was retitled "proved" to match.
+describe('a plan is proved only when no journey was left undecided', () => {
+  const held = { held: 2, failed: 0, undecided: 0 };
+  const plan = (...statuses: string[]) => statuses.map((status) => ({ status }));
+
+  it('is not proved with a journey blocked or undecided beside one that passed', () => {
+    expect(runProved(held, true, plan(ScriptStatus.PASSED, ScriptStatus.BLOCKED))).toBe(false);
+    expect(runProved(held, true, plan(ScriptStatus.PASSED, ScriptStatus.UNDECIDED))).toBe(false);
+    expect(verdictLine(held, true, plan(ScriptStatus.PASSED, ScriptStatus.BLOCKED))).toContain(
+      '1 of 2 journey(s) passed and the rest were not decided',
+    );
+  });
+
+  it('is proved when every journey passed, or a side road was deliberately not taken', () => {
+    expect(runProved(held, true, plan(ScriptStatus.PASSED, ScriptStatus.PASSED))).toBe(true);
+    expect(runProved(held, true, plan(ScriptStatus.PASSED, ScriptStatus.NOT_TAKEN))).toBe(true);
   });
 });

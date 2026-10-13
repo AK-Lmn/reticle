@@ -56,12 +56,12 @@ describe('computeVerdict', () => {
     expect(v.status).toBe(VerdictStatus.PASS);
   });
 
-  it('mixed pass + fail → PARTIAL', () => {
+  it('mixed pass + fail → FAIL: a failure beside a pass is still a failure', () => {
     const v = computeVerdict({
       ...base,
       flows: [flow('a', RunFlowStatus.PASS, 'x'), flow('b', RunFlowStatus.FAIL, 'y')],
     });
-    expect(v.status).toBe(VerdictStatus.PARTIAL);
+    expect(v.status).toBe(VerdictStatus.FAIL);
     expect(v.reasons.some((r) => r.includes('flow b'))).toBe(true);
   });
 
@@ -97,10 +97,8 @@ describe('computeVerdict', () => {
     expect(computeVerdict({ ...base, checks: [early, later] }).status).toBe(VerdictStatus.PASS);
     // A declared check that failed stays a failure, and so does a probe nothing later proved.
     const declared = { ...early, declaredBeforeActing: true };
-    expect(computeVerdict({ ...base, checks: [declared, later] }).status).toBe(
-      VerdictStatus.PARTIAL,
-    );
-    expect(computeVerdict({ ...base, checks: [later, early] }).status).toBe(VerdictStatus.PARTIAL);
+    expect(computeVerdict({ ...base, checks: [declared, later] }).status).toBe(VerdictStatus.FAIL);
+    expect(computeVerdict({ ...base, checks: [later, early] }).status).toBe(VerdictStatus.FAIL);
   });
 
   it('only failures → FAIL', () => {

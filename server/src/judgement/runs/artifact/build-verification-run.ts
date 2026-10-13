@@ -18,6 +18,7 @@ import {
   type RunVerdict,
 } from '@reticlehq/core';
 import { redactForProfile } from './profile-redact.js';
+import { supersededChecks } from '@reticlehq/engine/evidence/superseded-checks.js';
 
 /**
  * Everything a caller supplies; schemaVersion/createdAt/verdict are filled/computed by the builder.
@@ -40,22 +41,17 @@ export type VerificationRunInput = Omit<
  * Confidence: nothing ran → LOW; an oracle-backed flow or any check ran → HIGH; only smoke → MEDIUM.
  */
 export function computeVerdict(raw: VerificationRunInput): RunVerdict {
-  // A passive assert that read too early is superseded when the same claim held later in the run:
-  // the same rule the Harness's own tally applies (drive-report.ts), so the run, the answer and the
-  // dashboard give one verdict. A declared check is never superseded.
-  const input = {
-    ...raw,
-    checks: raw.checks.filter(
-      (c, at) =>
-        !(
-          c.status === Verified.NO &&
-          false === c.declaredBeforeActing &&
-          raw.checks
-            .slice(at + 1)
-            .some((later) => later.predicate === c.predicate && later.status === Verified.YES)
-        ),
-    ),
-  };
+  // A passive check that read too early is superseded by the same claim holding later: the one
+  // rule every fold applies (superseded-checks.ts).
+  const superseded = supersededChecks(
+    raw.checks.map((c) => ({
+      key: c.predicate,
+      passive: false === c.declaredBeforeActing,
+      held: Verified.YES === c.status,
+      failed: Verified.NO === c.status,
+    })),
+  );
+  const input = { ...raw, checks: raw.checks.filter((_, at) => !superseded.has(at)) };
   const passes =
     input.flows.filter((f) => f.status === RunFlowStatus.PASS || f.status === RunFlowStatus.HEALED)
       .length + input.checks.filter((c) => c.status === Verified.YES).length;
@@ -90,7 +86,9 @@ export function computeVerdict(raw: VerificationRunInput): RunVerdict {
 
   let status: VerdictStatus;
   if (blockingRisks > 0) status = VerdictStatus.FAIL;
-  else if (fails > 0 && passes > 0) status = VerdictStatus.PARTIAL;
+  // A failure beside things that passed is a fail, not a partial: the result block, the CLI and the
+  // platform's grade all call it that, and a "partial" beside "Reticle result: failed" was one run
+  // with two verdicts. A partial is only ever a pass with something skipped or undecided beside it.
   else if (fails > 0) status = VerdictStatus.FAIL;
   else if ((skippedFlows > 0 || undecidedChecks > 0) && passes > 0) {
     status = VerdictStatus.PARTIAL;

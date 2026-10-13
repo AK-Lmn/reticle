@@ -148,7 +148,8 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // 11 since `hud-entry.ts`, the `@reticlehq/core/hud` subpath. Entry points live at the package root
   // beside `tour-entry.ts` and `telemetry-entry.ts`, because package.json names them by path.
   'core/src': 11,
-  'engine/src/evidence': 19,
+  // superseded-checks: the one rule every fold of a run's checks applies, a verdict rule.
+  'engine/src/evidence': 20,
   // 18 since the last two cycles in this package were removed: `predicate-eval-kit.ts` (the result
   // type and the four comparisons the oracles are written in) and `predicate-session.ts` (what the
   // engine needs from a session). Both were reached back out of the modules that call their readers.
@@ -256,7 +257,8 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // 15 since `drive-agent.ts` and `drive-plan.ts` left with the drive itself: onboarding stops at a
   // connected app, and the stage that proves a flow runs a model inside the daemon rather than
   // spawning a second agent CLI. Lowered in the same commit, which is what locks the gain in.
-  'server/src/command/setup': 16,
+  // 17 with tauri-signing.ts: setup starts the dev server, and signs a Tauri build as it does.
+  'server/src/command/setup': 17,
   // Crossed the line with `drive-url-stamp.ts`: the mark that tells a page Reticle opened it for
   // itself. Its own leaf because the SDK reads the same constant to decide not to show a human a
   // first-run tour over a page nobody is looking at -- a rule split across two packages is worth

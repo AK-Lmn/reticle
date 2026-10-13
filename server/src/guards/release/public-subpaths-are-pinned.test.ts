@@ -80,6 +80,9 @@ const PINNED: readonly PublicSurface[] = [
       // record, shared by the live act path and replay so a driven step and a replayed one describe
       // what happened in the same words.
       'evidence/step-effect.ts',
+      // New public entry point: which early checks a later pass supersedes, the one rule every fold
+      // of a run's checks applies (the Harness tally, the run verdict, the session's result block).
+      'evidence/superseded-checks.ts',
       'evidence/uncaptured-bodies.ts',
       'evidence/undeclared-change.ts',
       'evidence/unread-outcome.ts',
