@@ -5,6 +5,15 @@ import { asNumber, asString } from '@reticlehq/core';
 import { idleMsSchema } from '@/surface/tools/args/numeric-bounds.js';
 import type { ToolDef, ToolDeps } from '@/surface/tools/tool-kit.js';
 
+function sdkPredatesHud(version: string | undefined): boolean {
+  if (version === undefined) return true;
+  const match = /^(\d+)\.(\d+)/.exec(version);
+  if (!match) return true;
+  const major = parseInt(match[1]!, 10);
+  const minor = parseInt(match[2]!, 10);
+  return major < 3 || (major === 3 && minor < 6);
+}
+
 /**
  * Session lifecycle controls. The presenter session begins on the agent's first action and ends
  * either when the agent ends it (reticle_end_session) or after an idle window — and the human keeps the
@@ -62,10 +71,27 @@ export const SESSION_TOOLS: ToolDef[] = [
       // no HUD mounted. Reported, never `applied: true`: an agent told the HUD moved would test a
       // control it is still covering.
       const applied = (res.result as { hud?: unknown } | undefined)?.hud;
-      if ((hud !== undefined || corner !== undefined) && !Array.isArray(applied))
-        throw new Error(
-          'the page did not apply `hud`: its Reticle SDK predates it, or no HUD is mounted. Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.',
-        );
+      if (hud !== undefined || corner !== undefined) {
+        if (Array.isArray(applied) && applied.includes('reload to restore')) {
+          throw new Error(
+            `the HUD on session ${session.id} was removed; reload the page to restore it.`,
+          );
+        }
+        if (!Array.isArray(applied)) {
+          if (sdkPredatesHud(session.sdkVersion)) {
+            const versionText =
+              session.sdkVersion !== undefined
+                ? `page SDK ${session.sdkVersion}`
+                : 'the page SDK';
+            throw new Error(
+              `${versionText} on session ${session.id} predates \`hud\` (needs 3.6.0+). Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.`,
+            );
+          }
+          throw new Error(
+            `the HUD on session ${session.id} was removed; reload the page to restore it.`,
+          );
+        }
+      }
       return res.result ?? { applied: true };
     },
   },
