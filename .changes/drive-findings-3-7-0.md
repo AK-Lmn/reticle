@@ -11,6 +11,8 @@
 - **`@reticlehq/server`: a Harness plan is proved only when no journey was left undecided.** A plan with one passed journey beside journeys a credit cut-off had blocked read PROVED, and its result block was retitled "proved". A plan now needs every journey passed (or a side road deliberately not taken); anything else short of a failure reads not proved.
 - **`@reticlehq/server`: one rule decides which early checks a later pass supersedes, everywhere.** The Harness's tally, a run's verdict, a synced run's flow status and the session's result block each applied their own version, and one applied none, so an end-of-session answer could say `claim: pass` beside "Reticle result: failed".
 - **A run with a failed check beside a passed one is a fail, not a partial.** The result block, the CLI and the platform already called it a fail; the run file said partial. A partial is now only a pass with something skipped or undecided beside it.
+- **`@reticlehq/server`: a Harness drive stops at the end its goal names.** A drive that reached "Generated script for" kept going until its step budget ran out, navigated to a start page that signs the app out, and ended on a page without the result, failing a journey that worked. Once a check has held and the page shows the end the goal quotes, the drive stops there.
+- **`@reticlehq/server`: a platform refusal is recognised by its code, not its wording.** The platform reworded its Harness lock and every locked Harness came back as "may be a defect in Reticle". A refusal's code (`harness_locked`, `harness_off`, `needs_card`) now picks a lead sentence Reticle owns, and that is what is recognised.
 
 ### Added
 

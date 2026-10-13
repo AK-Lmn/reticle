@@ -70,6 +70,7 @@ import { reticleToolset } from './harness-toolset.js';
 import { DriveRefusedError, noteDriveLine } from '@/features/harness/drive-runs.js';
 import { personaCredentials } from '@/features/harness/platform/persona-credentials.js';
 import {
+  endOf,
   goalOfDrive,
   parseGoals,
   readOpening,
@@ -82,6 +83,16 @@ import { mapForPlatform } from '@/features/harness/explore/site-map.js';
 import { huntAndGrade, knownRoutes, refreshMap, siteMapFor } from './harness-hunt.js';
 import { instrumentationOf, probeMarkers } from '@/portal/session/recorded-gaps.js';
 import { getSessionMetrics } from '@/telemetry/session-metrics.js';
+export {
+  MSG_HARNESS_DISABLED,
+  MSG_HARNESS_UNCLAIMED,
+  MSG_HARNESS_UNCONFIRMED,
+} from '@/features/harness/platform/refusal.js';
+import {
+  MSG_HARNESS_DISABLED,
+  MSG_HARNESS_UNCLAIMED,
+  MSG_HARNESS_UNCONFIRMED,
+} from '@/features/harness/platform/refusal.js';
 
 export interface ExploreOptions {
   /** Who to be, or what to accomplish. Appended to the standing instruction. */
@@ -458,6 +469,11 @@ export async function exploreApp(
       planAsText(driving),
       ...(options.focus === undefined ? [] : [`Focus: ${options.focus}`]),
     ].join('\n\n'),
+    // The end the caller's words quote stops the drive once it shows: see HarnessOptions.endsAt.
+    ...((end) =>
+      end === undefined || options.focus === undefined
+        ? {}
+        : { endsAt: { text: end, own: [options.focus] } })(endOf(options.focus ?? '')),
   });
 
   // Before the session ends and is graded: a drive whose goal was missed, or that was cut off part-way,
@@ -718,32 +734,6 @@ export function reconcileFlows(
 }
 
 /**
- * What a person said about autonomous driving on the platform, honoured here.
- *
- * The switch existed, persisted and round-tripped, and the daemon read it and threw it away — so
- * turning the harness OFF changed a value in a database and nothing else. A control that does not
- * control anything is worse than no control: somebody turns it off, watches Reticle drive their app
- * anyway, and now correctly distrusts every other switch in the product.
- *
- * Absent means OFF. The Harness is opt-in: a new project starts with it off, and an answer that does
- * not say it is on is not a yes to spend credits on.
- */
-export const MSG_HARNESS_DISABLED =
-  "The Reticle Harness is off for this project. The user can switch it on in the HUD's Settings " +
-  'or the Reticle dashboard (Settings → Projects → Reticle Harness on <project>); until then, drive the app yourself ' +
-  'through the MCP tools.';
-
-/**
- * The other reason a drive can be refused, and it is NOT the same reason.
- *
- * A drive through the platform spends Reticle's model budget, bounded by the workspace's Harness
- * credits. The platform answers this only when something other than the switch stops it.
- */
-export const MSG_HARNESS_UNCLAIMED =
-  'The Reticle platform says this workspace cannot drive the Harness right now, usually because its ' +
-  'credits are spent: see Settings → Plan in the Reticle dashboard.';
-
-/**
  * Why a drive must not be replayed into a verdict, or undefined when it may. A drive the platform
  * cut off (credits gone: 402 needs_card) had saved one partial flow, and replaying it printed PASS
  * with no word about the credits. The one test both CLI explore paths answer through.
@@ -763,11 +753,6 @@ export function cutOffReason(drive: { stopReason?: unknown; error?: unknown }): 
 /** The Agent Log's last line for a drive the platform cut off: its reason, and that it proved nothing. */
 export const msgDriveCutOff = (error: string | undefined): string =>
   `Harness stopped before it finished, so nothing is proved: ${error ?? 'the drive broke.'}`;
-
-/** The platform could not be asked, and the drive would spend Reticle's budget without its yes. */
-export const MSG_HARNESS_UNCONFIRMED =
-  'Could not confirm Harness access with the Reticle platform, so the drive did not start. Try ' +
-  'again in a moment.';
 
 /** One read, however many questions are asked of the answer. */
 function platformConfig(env: Record<string, string | undefined>, options: ExploreOptions) {

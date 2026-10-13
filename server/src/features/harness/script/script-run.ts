@@ -30,7 +30,7 @@ import {
   type ScriptStep,
 } from '@reticlehq/core/artifacts';
 import { ReplayOutcome, checkTally, replayedFlows } from '../drive-report.js';
-import { lookFor, parseGoals } from '../goals.js';
+import { endOf, lookFor } from '../goals.js';
 import {
   DEFAULT_MAX_STEPS,
   StopReason,
@@ -668,13 +668,6 @@ function endHeldCall(end: string): ToolOutcome {
     result: { verified: Verified.YES },
     isError: false,
   };
-}
-
-/** The end state a goal quotes: its last quoted text that it does not negate. */
-function endOf(goal: string): string | undefined {
-  return parseGoals(goal)
-    .filter((g) => true !== g.absent)
-    .at(-1)?.text;
 }
 
 /** A tool that throws is a failed step, not a crashed run. */

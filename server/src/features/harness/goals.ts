@@ -130,6 +130,13 @@ function withoutCutStart(line: string, own: string, min: number): string {
   return rest;
 }
 
+/** The end state a goal quotes: its last quoted text that it does not negate. */
+export function endOf(goal: string): string | undefined {
+  return parseGoals(goal)
+    .filter((g) => true !== g.absent)
+    .at(-1)?.text;
+}
+
 /** The observable goals in a persona: whatever it quoted, each marked absent when it was negated. */
 export function parseGoals(persona: string | undefined): Goal[] {
   if (persona === undefined) return [];
