@@ -218,6 +218,23 @@ describe('BrowserPool', () => {
     expect(pool.leaseIdOnOrigin('http://localhost:3000', 'agent-1')).toBe('app-name');
   });
 
+  // Ending a leased session releases its lease, but only the ender's own: another agent's tab is
+  // never closed from under it.
+  it('heldBy answers for the caller that took the lease, under either of its names', async () => {
+    const { launch } = fakeLauncher();
+    const pool = new BrowserPool(launch, { maxContexts: 4, genSessionId: counterIds() });
+
+    const a = await pool.acquire('http://localhost:3000/a', { owner: 'agent-1' });
+    pool.alias('app-name', a.sessionId);
+    expect(pool.heldBy(a.sessionId, 'agent-1')).toBe(true);
+    expect(pool.heldBy('app-name', 'agent-1')).toBe(true);
+    expect(pool.heldBy(a.sessionId, 'agent-2')).toBe(false);
+    expect(pool.heldBy(a.sessionId, undefined)).toBe(false);
+    expect(pool.heldBy('not-a-lease', 'agent-1')).toBe(false);
+    await pool.release(a.sessionId);
+    expect(pool.heldBy(a.sessionId, 'agent-1')).toBe(false);
+  });
+
   // #1226: two agents on one origin were handed the same tab, so each one's verdicts could rest on
   // the other's clicks, and a seeded acquire released the other agent's lease from under it.
   it('hands a lease back only to the caller that took it', async () => {
