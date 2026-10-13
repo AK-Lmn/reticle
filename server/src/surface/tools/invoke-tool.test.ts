@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VACUOUS_BECAUSE } from '@reticlehq/engine/evidence/verified.js';
 import { SessionState, UNSCRIPTABLE_TAB_RECOMMENDATION, TRANSPORT_LIMITS } from '@reticlehq/core';
 import { TOOLS, MERGED_TOOLS, type ToolDef, type ToolDeps } from './tools.js';
-import { DiscoveryInvite, ReticleTool } from '@reticlehq/core';
+import { ReticleTool } from '@reticlehq/core';
 import { EnvelopeKey } from './tool-kit.js';
 import { getSessionMetrics, resetSessionMetrics } from '@/telemetry/session-metrics.js';
 import { buildDynamicTools } from './dynamic-tools.js';
@@ -399,7 +399,6 @@ describe('the feedback invitation is counted wherever friction actually happens'
     const result = (await runTool(exempt, fakeDeps(), {})) as Record<string, unknown>;
     expect(result[EnvelopeKey.FEEDBACK_INVITE]).toBeDefined();
     expect(result[EnvelopeKey.TALK_TO_US]).toBeUndefined();
-    expect(DiscoveryInvite.AGENT).toBeDefined();
   });
 
   // Driven over MCP: a bare `settled` wait, which the instructions recommend, is `unknown` because

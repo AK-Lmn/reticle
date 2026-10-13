@@ -80,6 +80,8 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // own root attributes and every surface's controls, so it sits with the surfaces it watches.
   // 24 with `presenter-plan.ts`, the Harness plan board on the Agent Log: one surface, with its own
   // stylesheet, beside the others.
+  // 27 with `presenter-agent-link.ts` (the coding agent's status line), `presenter-harness-row.ts`
+  // (the Harness row and page) and `presenter-personas.ts` (who Run Harness acts as): three surfaces.
   'adapters/realm/browser/src/presenter': 27,
   // Newly over the line at 11, with `presenter-safe-html.ts`. It crossed because two SECURITY
   // helpers left `presenter-report.ts` when the account capsule became their second caller: HTML
@@ -106,6 +108,10 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
    * needed it too, and its own advice ("most reaches were a file filed somewhere odd") was right:
    * a shallow walk over the contract's own type belongs beside the contract. Moving it here took a
    * cross-layer reach out of the server and left the file count as the only cost.
+   *
+   * 18 with `disparity.ts` (the agent and Harness verdicts on one goal, compared) and
+   * `instrumentation-coverage.ts` (how much of an app Reticle sees): verdict facts the HUD,
+   * `doctor` and the platform all read.
    */
   'core/src/verdict': 18,
   // 17 since `hold.ts`: `clampHoldMs` is the bound BOTH input paths clamp `holdMs` with, so it
@@ -148,7 +154,8 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // 11 since `hud-entry.ts`, the `@reticlehq/core/hud` subpath. Entry points live at the package root
   // beside `tour-entry.ts` and `telemetry-entry.ts`, because package.json names them by path.
   'core/src': 11,
-  // superseded-checks: the one rule every fold of a run's checks applies, a verdict rule.
+  // 19 with `state-bookkeeping.ts`: telling a query cache's own bookkeeping from a state change.
+  // 20 with `superseded-checks.ts`: the one rule every fold of a run's checks applies.
   'engine/src/evidence': 20,
   // 18 since the last two cycles in this package were removed: `predicate-eval-kit.ts` (the result
   // type and the four comparisons the oracles are written in) and `predicate-session.ts` (what the
@@ -191,6 +198,7 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // 12 since `defaultRunId` moved out of `runner-port.ts` into its own leaf: `verification-sync`
   // wanted that one function and imported a module that pulls the whole flow-replay stack, closing a
   // cycle. Same trade as `language/flows` below — a cycle is paid for in files.
+  // 13 with `resume.ts`: the block an agent gets back after a compaction, folded from the run records.
   'server/src/judgement/runs': 13,
   // 33 since `act-merged.ts`: `reticle_act` absorbing `reticle_act_sequence`, routed on the shape of
   // the call rather than on an `action` name because `act` already owns that parameter. It is its
@@ -274,6 +282,9 @@ const OVER_THE_LINE: Readonly<Record<string, number>> = {
   // to read daemon state and port holders -- every other home needed two new reaches for it.
   // 25 with `command-payload.ts`: the command's wire JSON, moved out of `session.ts` (at its cap)
   // when it gained the mark that says the Harness sent it.
+  // 29 with `agent-link.ts` (the HUD's coding-agent line), `narration-args.ts` (who a HUD narration
+  // line is from), `zero-install-first-call.ts` (opening an unwired app on the first call) and
+  // `recorded-gaps.ts` (the gaps a session's verdicts recorded): each reads the session it sits beside.
   'server/src/portal/session': 29,
   // 32 since two leaves were extracted out of `flow-replay.ts` to break the last runtime cycle in
   // this directory: `flow-replay-types.ts` (shapes two collaborators share) and `flow-anchor.ts`
