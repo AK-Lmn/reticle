@@ -42,6 +42,7 @@ import {
 } from '@reticlehq/core';
 import { HudVisibility, ReticleTool, SESSION_HEALTH } from '@reticlehq/core';
 import type { ToolDef, ToolDeps } from './tool-kit.js';
+import type { BrowserPool } from '@/portal/pool/browser-pool.js';
 import { asString } from '@reticlehq/core';
 import { chromiumPreflightRefusal } from '@/command/cli/doctor/browser/chromium-hint.js';
 import {
@@ -717,17 +718,32 @@ const LEASE_RELEASE_TOOL: ToolDef = {
     if (sessionId === undefined || 0 === sessionId.length) {
       throw new Error('reticle_lease{action:"release"} requires a sessionId');
     }
-    // Read the project BEFORE releasing: afterwards the session is gone and there is nothing to
-    // ask which project it belonged to.
-    const projectId = deps.sessions.get(sessionId)?.projectId;
-    await pool.release(sessionId);
-    dropArtifactRootClaim(sessionId);
-    // Only once the LAST lease is gone. Announcing "live again" while another lease still drives
-    // would be a lie, and a HUD that says the wrong thing is worse than one that says nothing.
-    if (0 === pool.activeCount()) tellWatchers(deps, projectId, AGENT_DRIVING_HERE_AGAIN);
-    return { released: true, leased: pool.activeCount() };
+    return { released: true, leased: await releaseLease(deps, pool, sessionId) };
   },
 };
+
+/**
+ * Release one lease and everything that hangs off it. Returns how many leases are still held.
+ *
+ * Shared with `reticle_session { action: "end" }`: an ended session that kept its lease stayed
+ * connected until the reaper took it, and every id-less call from the next agent was refused as
+ * ambiguous in the meantime.
+ */
+export async function releaseLease(
+  deps: ToolDeps,
+  pool: BrowserPool,
+  sessionId: string,
+): Promise<number> {
+  // Read the project BEFORE releasing: afterwards the session is gone and there is nothing to
+  // ask which project it belonged to.
+  const projectId = deps.sessions.get(sessionId)?.projectId;
+  await pool.release(sessionId);
+  dropArtifactRootClaim(sessionId);
+  // Only once the LAST lease is gone. Announcing "live again" while another lease still drives
+  // would be a lie, and a HUD that says the wrong thing is worse than one that says nothing.
+  if (0 === pool.activeCount()) tellWatchers(deps, projectId, AGENT_DRIVING_HERE_AGAIN);
+  return pool.activeCount();
+}
 
 /**
  * What to say when a lease was taken while a real tab was already open.

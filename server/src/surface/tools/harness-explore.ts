@@ -570,7 +570,13 @@ function planUrlFor(
     const dashboard = readDashboardUrl(root);
     return dashboard === undefined
       ? {}
-      : { planUrl: dashboardPlanUrl(dashboard, planId, readLinkedProjectId(root)) };
+      : {
+          planUrl: dashboardPlanUrl({
+            dashboardUrl: dashboard,
+            planId,
+            projectId: readLinkedProjectId(root),
+          }),
+        };
   } catch {
     return {};
   }

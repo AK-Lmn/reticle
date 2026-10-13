@@ -290,6 +290,16 @@ export class BrowserPool {
     return this.#active.has(sessionId) ? sessionId : (this.#aliases.get(sessionId) ?? sessionId);
   }
 
+  /**
+   * Whether `sessionId` is a live lease that `owner` may let go of: one it took, or one taken by a
+   * caller with no id, which cannot be told apart from it. Another agent's lease is never this
+   * caller's to close (#1226).
+   */
+  heldBy(sessionId: string, owner: string | undefined): boolean {
+    const lease = this.#active.get(this.#leaseIdOf(sessionId));
+    return lease !== undefined && (lease.owner === undefined || lease.owner === owner);
+  }
+
   /** Mark a lease as still in use (called on agent activity) so the reaper doesn't reclaim it. */
   touch(sessionId: string): void {
     const lease = this.#active.get(this.#leaseIdOf(sessionId));

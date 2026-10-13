@@ -38,7 +38,7 @@ import { emitBugFoundHook, emitVerdictHook } from '@/hooks/hook-emit.js';
 import { reportOnboardingStep } from '@/telemetry/onboarding-funnel.js';
 import { noteActed, noteFirstVerdict, noteOnboardingFirst } from '@/telemetry/onboarding-firsts.js';
 import { OnboardingPhase, OnboardingStepStatus } from '@reticlehq/core/telemetry';
-import { DiscoveryInvite, asString } from '@reticlehq/core';
+import { DiscoveryInvite } from '@reticlehq/core';
 import { SESSION_ID_ARG, sessionIdFromArgs, spentRefFromArgs } from './tools-helpers.js';
 import { EnvelopeKey, STEP_SHOT_TOOLS } from './tool-kit.js';
 import { ReticleTool } from '@reticlehq/core';
@@ -46,11 +46,6 @@ import { takeFeedbackPrompt } from './feedback-tools.js';
 import { takeFeedbackUndelivered } from '@/telemetry/feedback-delivery.js';
 import type { Session } from '@/portal/session/session.js';
 import { noteRefsMinted, wrongTabRefusal } from '@/portal/session/facts/ref-provenance.js';
-import {
-  CAPTURED_TOOLS,
-  noteCapturedCall,
-  noteToolDispatched,
-} from '@/surface/tools/feature-capture.js';
 import { span } from '@/trace.js';
 import { takeStepShot } from '@/features/visual/step-shots.js';
 import {
@@ -563,42 +558,6 @@ async function dispatchTool<Ext>(
     const message = session.versionSkew;
     reportRefusal(tool.name, message);
     throw new Error(message);
-  }
-  // The read-only calls the journal never keeps, recorded HERE because this is the one dispatch
-  // point every call routes through — a second recording site is a second thing to forget, and this
-  // instrument exists precisely because nothing was recorded before. Recorded before the handler
-  // runs: a read dispatches no action, so the counter reads the same either side.
-  //
-  // `reticle_context` is session-EXEMPT, so `session` above is undefined for it and it needs its own
-  // lenient resolve. Failing that resolve is silent by design: a call made with nothing connected
-  // has no per-session ledger to land in, and an instrument must never be why a tool call fails.
-  //
-  // EVERY tool is counted here, not just the read set: which of the 70-odd names in the table an
-  // agent actually reaches for is the question a decision about cutting or consolidating the surface
-  // turns on, and it had no answer. `reticle_run` is the one exclusion, for the same reason
-  // `reportRefusal` and `bugsInResult` exclude it — its handler calls `runTool` on the real tool, so
-  // the inner call is already counted under the name that RAN, and counting the wrapper too would
-  // both double the total and hide the run-only tier behind a single wrapper name. That tier is
-  // precisely the one the decision hinges on. See surface/tools/tool-hit-rate.ts.
-  if (ReticleTool.RUN !== tool.name) {
-    let target = session;
-    if (target === undefined) {
-      try {
-        target = deps.sessions.resolve(rawSessionId);
-      } catch {
-        target = undefined;
-      }
-    }
-    if (target !== undefined) {
-      noteToolDispatched(target, tool.name);
-      if (CAPTURED_TOOLS.has(tool.name)) {
-        const subject = asString(args['ref']) ?? asString(args['target']);
-        noteCapturedCall(target, {
-          tool: tool.name,
-          ...(subject === undefined ? {} : { subject }),
-        });
-      }
-    }
   }
   // A ref that was handed out by a DIFFERENT tab, on a call that named no session. Refused here, at
   // the one point that knows both the ref and the tab resolution picked — the handler only learns
