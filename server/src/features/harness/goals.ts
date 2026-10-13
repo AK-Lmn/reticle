@@ -260,6 +260,11 @@ async function settle(
     await invoke(ReticleTool.WAIT_FOR, {
       predicate: { kind: PredicateKind.SETTLED },
       timeout_ms: SETTLE_MS,
+      // From the session's start, not from this call: a request the drive's last click opened is
+      // in flight BEFORE this wait begins, and a window that starts now cannot see it. Driven over
+      // MCP: the drive ended on "Generating…", the page read as settled, and a journey whose end
+      // appeared a second later was failed. SETTLE_MS still bounds a request that never answers.
+      since: 0,
     });
   } catch {
     /* a page that never settles is still read as it stands */
