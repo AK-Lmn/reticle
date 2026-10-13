@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { VACUOUS_BECAUSE } from '@reticlehq/engine/evidence/verified.js';
 import { SessionState, UNSCRIPTABLE_TAB_RECOMMENDATION, TRANSPORT_LIMITS } from '@reticlehq/core';
 import { TOOLS, MERGED_TOOLS, type ToolDef, type ToolDeps } from './tools.js';
 import { DiscoveryInvite, ReticleTool } from '@reticlehq/core';
@@ -399,6 +400,25 @@ describe('the feedback invitation is counted wherever friction actually happens'
     expect(result[EnvelopeKey.FEEDBACK_INVITE]).toBeDefined();
     expect(result[EnvelopeKey.TALK_TO_US]).toBeUndefined();
     expect(DiscoveryInvite.AGENT).toBeDefined();
+  });
+
+  // Driven over MCP: a bare `settled` wait, which the instructions recommend, is `unknown` because
+  // the caller asserted nothing real — and was answered "an unknown verdict is our defect".
+  it('does not invite on an unknown the caller made by asserting nothing real', async () => {
+    const vacuous: ToolDef = {
+      name: ReticleTool.FLOW_VERIFY,
+      description: '',
+      inputSchema: {},
+      handler: () => Promise.resolve({ verified: 'unknown', because: VACUOUS_BECAUSE }),
+    };
+    const result = (await runTool(vacuous, fakeDeps(), {})) as Record<string, unknown>;
+    expect(result[EnvelopeKey.FEEDBACK_INVITE]).toBeUndefined();
+    const undecided: ToolDef = {
+      ...vacuous,
+      handler: () => Promise.resolve({ verified: 'unknown', because: 'the capture was not clean' }),
+    };
+    const asked = (await runTool(undecided, fakeDeps(), {})) as Record<string, unknown>;
+    expect(asked[EnvelopeKey.FEEDBACK_INVITE]).toBeDefined();
   });
 
   it('does not offer it on a call that went fine', async () => {

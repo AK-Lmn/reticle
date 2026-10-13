@@ -759,3 +759,23 @@ describe('one answer, one count', () => {
     expect(summary).toContain('2 action(s) declared no consequence');
   });
 });
+
+// Driven over MCP: the model asserted the text Generate produces before its POST answered; the same
+// assert held a second later, and the early `no` failed a journey whose goal was met.
+describe('a passive assert that read too early', () => {
+  const asserted = (verified: string) =>
+    call('reticle_assert', { predicate: { kind: 'text', contains: 'Done' } }, { verified });
+
+  it('is not a failed check when the same claim holds later in the drive', () => {
+    expect(checkTally([asserted('no'), asserted('yes')])).toEqual({
+      held: 1,
+      failed: 0,
+      undecided: 0,
+    });
+  });
+
+  it('still fails when nothing later holds it, or when it failed after holding', () => {
+    expect(checkTally([asserted('no')]).failed).toBe(1);
+    expect(checkTally([asserted('yes'), asserted('no')]).failed).toBe(1);
+  });
+});

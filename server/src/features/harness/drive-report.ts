@@ -275,22 +275,32 @@ interface GradedCheck {
 function gradedChecks(toolCalls: readonly ToolOutcome[]): GradedCheck[] {
   const heldPresses = new Set<string>();
   const out: GradedCheck[] = [];
-  for (const [index, made] of toolCalls.entries()) {
+  const checks = toolCalls.flatMap((made, index) => {
     const call = throughRun(made);
     const args = asRecord(call.args);
     const until = untilOf(args);
     const isCheck =
       ReticleTool.ASSERT === call.name ||
       (ReticleTool.ACT_AND_WAIT === call.name && until !== undefined);
-    if (!isCheck || call.isError) continue;
-    const result = asRecord(call.result);
-    // The driver's own wrong guess about the route checked the driver, not the app.
-    if (routeGuessMissed(args, result)) continue;
+    if (!isCheck || call.isError) return [];
     const predicate = PredicateSchema.safeParse(until);
     const key = predicate.success
       ? `${predicate.data.kind}|${describeWaitTarget(predicate.data)}`
       : JSON.stringify(until ?? null);
+    return [{ index, call, args, result: asRecord(call.result), key }];
+  });
+  for (const [at, { index, call, args, result, key }] of checks.entries()) {
+    // The driver's own wrong guess about the route checked the driver, not the app.
+    if (routeGuessMissed(args, result)) continue;
     const verified = asString(result['verified']);
+    // A passive assert that read too early: the same claim held later in this drive. Driven over
+    // MCP, the model asserted the text Generate produces before its POST answered, and that `no`
+    // failed a journey whose goal was met. A DECLARED check (act_and_wait) is never excused this
+    // way: a first click that did nothing is a finding even if a second one works.
+    const heldLater = checks
+      .slice(at + 1)
+      .some((later) => later.key === key && Verified.YES === asString(later.result['verified']));
+    if (ReticleTool.ASSERT === call.name && Verified.NO === verified && heldLater) continue;
     // A second press of a control whose claim already held is the Harness's own extra action.
     const ref = asString(args['ref']);
     const pressed = ref === undefined ? undefined : `${ref}|${key}`;

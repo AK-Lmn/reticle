@@ -340,10 +340,14 @@ export const ACT_SEQUENCE_TOOL: ToolDef = {
            * cannot be read. Sharing the builder is what makes that true by construction rather than
            * by two implementations agreeing today.
            */
-          const described = {
+          const describe = () => ({
             ...describeStepResult(step, asRecord(outcome.result)),
             ...effectOf(session, stepSince),
-          };
+          });
+          const deciding = (step: ReturnType<typeof describe>) =>
+            (step.contradictions ?? [])
+              .map((c) => c.kind)
+              .filter((kind) => !isAdvisory(kind) && !isAbsenceDerived(kind));
           /*
            * Evaluate what the step SAID it would cause, in the window this step opened.
            *
@@ -352,15 +356,22 @@ export const ACT_SEQUENCE_TOOL: ToolDef = {
            * satisfy step four's assertion, which is a false green built out of correct parts.
            */
           const parsed = PredicateSchema.safeParse(step['expect']);
-          const contradicted = (described.contradictions ?? [])
-            .map((c) => c.kind)
-            .filter((kind) => !isAdvisory(kind) && !isAbsenceDerived(kind));
-          const disagreement = 0 === contradicted.length ? {} : { contradicted };
           if (!parsed.success) {
-            expectations.push({ declared: false, ...disagreement });
+            const described = describe();
+            const contradicted = deciding(described);
+            expectations.push({
+              declared: false,
+              ...(0 === contradicted.length ? {} : { contradicted }),
+            });
             await pushStep(described);
           } else {
             const verdict = await waitForPredicate(session, parsed.data, perStepTimeout, stepSince);
+            // Described over the window the verdict was taken in, not the dispatch window before it:
+            // a step that waited 1.5s for its declared 200 reported that request "still in flight"
+            // beside `held: true`, a contradiction about a moment the verdict was not taken at.
+            const described = describe();
+            const contradicted = deciding(described);
+            const disagreement = 0 === contradicted.length ? {} : { contradicted };
             const held = true === verdict.pass;
             // A tab that went away (an external checkout page) or a predicate that could not be
             // read decided nothing: unknown, never a miss blamed on the app.

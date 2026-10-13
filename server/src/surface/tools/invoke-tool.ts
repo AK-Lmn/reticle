@@ -61,6 +61,7 @@ import {
   recordImpact,
 } from '@/memory/impact/impact-recorder.js';
 import { FrictionKind, frictionOf, inviteFor } from './feedback-invite.js';
+import { VACUOUS_BECAUSE } from '@reticlehq/engine/evidence/verified.js';
 import type { ToolCall, ToolDef, ToolDeps } from './tool-kit.js';
 
 /**
@@ -319,7 +320,9 @@ function frictionInviteFor(toolName: string, raw: unknown): FrictionKind | undef
   if (!isPlainObject(raw) || toolName === ReticleTool.RUN) return undefined;
   const friction = frictionOf({
     unknownTool: false,
-    verifiedUnknown: 'unknown' === raw['verified'],
+    // A vacuous unknown is the caller's: it asserted nothing real (a bare `settled` wait, which the
+    // instructions recommend). Inviting a bug report there told agents Reticle had failed them.
+    verifiedUnknown: 'unknown' === raw['verified'] && VACUOUS_BECAUSE !== raw['because'],
     repeatRun: getSessionMetrics().currentRun,
     errored: resultIsError(raw),
     // A verdict is progress. Without this, three successful act_and_wait calls in a row — the exact

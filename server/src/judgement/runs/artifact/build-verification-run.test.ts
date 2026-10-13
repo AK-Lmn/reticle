@@ -89,6 +89,20 @@ describe('computeVerdict', () => {
     expect(v.reasons.some((r) => r.includes('undecided'))).toBe(true);
   });
 
+  // Driven over MCP: a passive assert read the text Generate produces before its POST answered,
+  // and the same claim held a moment later; the run said PARTIAL for a journey that worked.
+  it('a passive check superseded by the same claim holding later does not fail the run', () => {
+    const early = { predicate: "text 'Done'", status: Verified.NO, declaredBeforeActing: false };
+    const later = { predicate: "text 'Done'", status: Verified.YES, declaredBeforeActing: false };
+    expect(computeVerdict({ ...base, checks: [early, later] }).status).toBe(VerdictStatus.PASS);
+    // A declared check that failed stays a failure, and so does a probe nothing later proved.
+    const declared = { ...early, declaredBeforeActing: true };
+    expect(computeVerdict({ ...base, checks: [declared, later] }).status).toBe(
+      VerdictStatus.PARTIAL,
+    );
+    expect(computeVerdict({ ...base, checks: [later, early] }).status).toBe(VerdictStatus.PARTIAL);
+  });
+
   it('only failures → FAIL', () => {
     const v = computeVerdict({ ...base, flows: [flow('b', RunFlowStatus.FAIL)] });
     expect(v.status).toBe(VerdictStatus.FAIL);

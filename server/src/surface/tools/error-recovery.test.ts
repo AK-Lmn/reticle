@@ -99,6 +99,13 @@ describe('recoveryFor — every known error carries an actionable next move', ()
     expect(
       recoveryFor('Reticle Harness is locked. Connect your app first, then run it again.'),
     ).toBe(RECOVERY.HARNESS_LOCKED);
+    // The platform's setup-score lock, driven over MCP: it opens "Harness is locked", with no
+    // "Reticle", and was answered with "may be a defect in Reticle".
+    expect(
+      recoveryFor(
+        'Harness is locked. Setup score: 75%. Harness needs 80%. Missing: File and line, Stable test ids.',
+      ),
+    ).toBe(RECOVERY.HARNESS_LOCKED);
     expect(
       recoveryFor(
         'This workspace has no harness entitlement, so autonomous driving would run on Reticle\u2019s model budget.',

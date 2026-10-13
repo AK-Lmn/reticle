@@ -417,7 +417,8 @@ describe('replayFlow — anchor re-resolution + legible drift', () => {
 
     expect(steps[0]?.ok).toBe(false);
     expect(steps[0]?.drift?.reasonKind).toBe(DriftReason.TESTID_NOT_FOUND);
-    expect(steps[0]?.drift?.nearest).toBe('nav-overview');
+    // `nav-overview` is a different control, not a rename of `nav-compose`: no survivor is offered.
+    expect(steps[0]?.drift?.nearest).toBeNull();
     expect(calls).toBeGreaterThan(1); // it retried before concluding the anchor is gone
   });
 
@@ -564,6 +565,14 @@ describe('nearestTestid — closest surviving anchor', () => {
 
   it('8b: ties broken by shortest, case-insensitive', () => {
     expect(nearestTestid('Send', ['send-x', 'send'])).toBe('send');
+  });
+
+  it('8c: offers no survivor that is a different control, not a rename', () => {
+    // A replay that started signed out: the survivors are the login form.
+    expect(nearestTestid('compose-prompt', ['login-email', 'login-submit'])).toBeNull();
+    expect(nearestTestid('checkout-btn', ['checkout-button', 'login-submit'])).toBe(
+      'checkout-button',
+    );
   });
 });
 
