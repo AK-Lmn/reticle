@@ -1,17 +1,21 @@
 import { z } from 'zod';
-import { HudCorner, HudVisibility, ReticleCommand } from '@reticlehq/core';
+import {
+  HudCorner,
+  HudVisibility,
+  HUD_MIN_SDK_VERSION,
+  HUD_RELOAD_TO_RESTORE,
+  ReticleCommand,
+} from '@reticlehq/core';
 import { ReticleTool } from '@reticlehq/core';
 import { asNumber, asString } from '@reticlehq/core';
+import { compareVersions } from '@/command/version/version-skew.js';
 import { idleMsSchema } from '@/surface/tools/args/numeric-bounds.js';
 import type { ToolDef, ToolDeps } from '@/surface/tools/tool-kit.js';
 
 function sdkPredatesHud(version: string | undefined): boolean {
   if (version === undefined) return true;
-  const match = /^(\d+)\.(\d+)/.exec(version);
-  if (!match) return true;
-  const major = parseInt(match[1]!, 10);
-  const minor = parseInt(match[2]!, 10);
-  return major < 3 || (major === 3 && minor < 6);
+  const order = compareVersions(version, HUD_MIN_SDK_VERSION);
+  return order === undefined || order < 0;
 }
 
 /**
@@ -72,7 +76,7 @@ export const SESSION_TOOLS: ToolDef[] = [
       // control it is still covering.
       const applied = (res.result as { hud?: unknown } | undefined)?.hud;
       if (hud !== undefined || corner !== undefined) {
-        if (Array.isArray(applied) && applied.includes('reload to restore')) {
+        if (Array.isArray(applied) && applied.includes(HUD_RELOAD_TO_RESTORE)) {
           throw new Error(
             `the HUD on session ${session.id} was removed; reload the page to restore it.`,
           );
@@ -80,15 +84,13 @@ export const SESSION_TOOLS: ToolDef[] = [
         if (!Array.isArray(applied)) {
           if (sdkPredatesHud(session.sdkVersion)) {
             const versionText =
-              session.sdkVersion !== undefined
-                ? `page SDK ${session.sdkVersion}`
-                : 'the page SDK';
+              session.sdkVersion !== undefined ? `page SDK ${session.sdkVersion}` : 'the page SDK';
             throw new Error(
-              `${versionText} on session ${session.id} predates \`hud\` (needs 3.6.0+). Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.`,
+              `${versionText} on session ${session.id} predates \`hud\` (needs ${HUD_MIN_SDK_VERSION}+). Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.`,
             );
           }
           throw new Error(
-            `the HUD on session ${session.id} was removed; reload the page to restore it.`,
+            `the page did not apply \`hud\`: no HUD is mounted on session ${session.id}. Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.`,
           );
         }
       }

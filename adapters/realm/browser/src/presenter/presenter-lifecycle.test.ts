@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PresenterMode, HudVisibility } from '@reticlehq/core';
+import { PresenterMode, HudVisibility, HUD_RELOAD_TO_RESTORE } from '@reticlehq/core';
 import { Presenter } from './presenter.js';
 import { BRAND_NAME } from './chrome/presenter-brand.js';
 import {
@@ -366,7 +366,7 @@ describe('presenter v2 not-mounted safety', () => {
     const p = new Presenter({});
     p.mount();
     expect(p.placeHud(HudVisibility.REMOVED, undefined)).toEqual([HudVisibility.REMOVED]);
-    expect(p.placeHud(HudVisibility.SHOWN, undefined)).toEqual(['reload to restore']);
+    expect(p.placeHud(HudVisibility.SHOWN, undefined)).toEqual([HUD_RELOAD_TO_RESTORE]);
     p.destroy();
   });
 });
