@@ -2,6 +2,7 @@ import {
   ActionType,
   HudCorner,
   HudVisibility,
+  HUD_RELOAD_TO_RESTORE,
   HumanControlKind,
   ReticleCommand,
   PresenterMode,
@@ -720,7 +721,7 @@ export class Presenter {
   placeHud(visibility: HudVisibility | undefined, corner: HudCorner | undefined): string[] {
     const root = this.#root;
     if (root === undefined) {
-      if (this.#removed) return ['reload to restore'];
+      if (this.#removed) return [HUD_RELOAD_TO_RESTORE];
       return [];
     }
     const applied: string[] = [];
