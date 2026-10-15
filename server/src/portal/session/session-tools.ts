@@ -5,10 +5,10 @@ import {
   HUD_MIN_SDK_VERSION,
   HUD_RELOAD_TO_RESTORE,
   ReticleCommand,
-  compareVersions,
 } from '@reticlehq/core';
 import { ReticleTool } from '@reticlehq/core';
 import { asNumber, asString } from '@reticlehq/core';
+import { compareVersions } from '@/command/version/version-skew.js';
 import { idleMsSchema } from '@/surface/tools/args/numeric-bounds.js';
 import type { ToolDef, ToolDeps } from '@/surface/tools/tool-kit.js';
 
