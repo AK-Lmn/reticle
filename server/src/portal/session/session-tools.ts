@@ -90,7 +90,7 @@ export const SESSION_TOOLS: ToolDef[] = [
             );
           }
           throw new Error(
-            `the page did not apply \`hud\`: no HUD is mounted on session ${session.id}. Update the SDK (npx @reticlehq/server update) or test with the HUD where it is.`,
+            `the page did not apply \`hud\`: no HUD is mounted on session ${session.id}, so no HUD covers the page. Continue without \`hud\`.`,
           );
         }
       }

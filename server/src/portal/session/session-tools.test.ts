@@ -104,7 +104,9 @@ describe('reticle_session tool', () => {
 
     await expect(
       tool(ReticleTool.SESSION).handler(deps, { action: 'tune', hud: 'shown' }),
-    ).rejects.toThrow('the page did not apply `hud`: no HUD is mounted on session sess-456.');
+    ).rejects.toThrow(
+      'the page did not apply `hud`: no HUD is mounted on session sess-456, so no HUD covers the page. Continue without `hud`.',
+    );
   });
 
   it('throws explaining HUD was removed when page replies with reload to restore', async () => {
